@@ -1,0 +1,9 @@
+{
+  "name": "dialistock",
+  "version": "1.0.0",
+  "description": "DialiStock - Sistema de Gestión de Inventario · DaVita Chile · Centro Independencia",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

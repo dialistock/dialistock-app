@@ -1,0 +1,28 @@
+{
+  "name": "DialiStock",
+  "short_name": "DialiStock",
+  "description": "Sistema de Gestión de Inventario · DaVita Chile · Centro Independencia",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f2744",
+  "theme_color": "#0099cc",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["medical", "productivity", "utilities"],
+  "lang": "es",
+  "dir": "ltr",
+  "prefer_related_applications": false
+}

@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Debe ser una cuenta real (Email/Password), no una sesión anónima.
+    function esUsuarioReal() {
+      return request.auth != null
+             && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // Debe tener un documento en dialistock_usuarios con rol == 'admin'.
+    function esAdmin() {
+      return esUsuarioReal()
+             && exists(/databases/$(database)/documents/dialistock_usuarios/$(request.auth.uid))
+             && get(/databases/$(database)/documents/dialistock_usuarios/$(request.auth.uid)).data.rol == 'admin';
+    }
+
+    // Los 3 documentos que usa DialiStock: cualquier cuenta real puede leer
+    // (para poder ver el inventario), pero solo un admin puede escribir.
+    match /dialistock_data/{docId} {
+      allow read: if esUsuarioReal();
+      allow write: if esAdmin() && docId in ['main', 'invfis_progreso', 'invfis_historial'];
+    }
+
+    // Cada persona puede leer su propio perfil (para saber su rol). Los
+    // roles se asignan a mano desde la consola de Firebase, no desde la app.
+    match /dialistock_usuarios/{uid} {
+      allow read: if esUsuarioReal() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Todo lo demás queda bloqueado por defecto.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

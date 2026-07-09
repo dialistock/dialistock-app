@@ -8,7 +8,7 @@ let proyeccionesActuales = []; // último cálculo, para ajustes y solicitud de 
 function renderProyeccion() {
   // Update labels
   const dias = parseInt(document.getElementById('proy-dias')?.value) || 26;
-  const seguridad = parseInt(document.getElementById('proy-seguridad')?.value) || 12;
+  const seguridad = CalculoPedido.numeroODefault(document.getElementById('proy-seguridad')?.value, 12);
   const periodo = parseInt(document.getElementById('proy-periodo')?.value) || 30;
   const mesEl = document.getElementById('proy-mes');
   
@@ -327,7 +327,7 @@ function renderReconciliacion() {
 
 function exportarProyeccion() {
   const dias = parseInt(document.getElementById('proy-dias')?.value) || 26;
-  const seguridad = parseInt(document.getElementById('proy-seguridad')?.value) || 12;
+  const seguridad = CalculoPedido.numeroODefault(document.getElementById('proy-seguridad')?.value, 12);
   const periodo = parseInt(document.getElementById('proy-periodo')?.value) || 30;
   const mes = document.getElementById('proy-mes')?.options[document.getElementById('proy-mes')?.selectedIndex]?.text || '';
 
@@ -495,25 +495,6 @@ function renderExcelProjTable() {
       <td style="padding:7px 8px;text-align:right;font-family:monospace;font-weight:700;color:var(--accent)" id="epedido-val-${globalIdx}">${d.pedido.toLocaleString('es-CL')}${d.packFactor > 1 ? ` <span style="font-weight:400;color:var(--muted)">(${d.cajas}c)</span>` : ''}</td>
       </tr>`;
   }).join('');
-}
-
-function updateStockActual(idx, val) {
-  if (!projData[idx]) return;
-  const stockActual = Math.max(0, parseInt(val) || 0);
-  projData[idx].stockActual = stockActual;
-  const pedido = Math.max(0, projData[idx].proyeccion + projData[idx].stockSeg - stockActual);
-  projData[idx].pedido = pedido;
-  projData[idx].costoTotalPed = pedido * (projData[idx].costoUnit || 0);
-  // Update just the pedido cell
-  const cell = document.getElementById('pedido-val-' + idx);
-  if (cell) cell.textContent = pedido.toLocaleString('es-CL');
-  // Update stats
-  const tPed = projData.reduce((s, d) => s + d.pedido, 0);
-  const tCosto = projData.reduce((s, d) => s + (d.costoTotalPed || 0), 0);
-  const ps = document.getElementById('ps-ped');
-  if (ps) ps.textContent = tPed.toLocaleString('es-CL');
-  const pc = document.getElementById('ps-costo');
-  if (pc) pc.textContent = tCosto > 0 ? '$' + Math.round(tCosto).toLocaleString('es-CL') : 'S/D';
 }
 
 function recomputePedidoExcel(idx) {

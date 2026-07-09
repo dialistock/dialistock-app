@@ -130,11 +130,27 @@
     return needed;
   }
 
+  /**
+   * Convierte el valor de un campo numérico a número, respetando un 0
+   * explícito como valor válido (a diferencia de `parseInt(v) || default`,
+   * que confunde "el usuario escribió 0" con "el campo está vacío" y
+   * silenciosamente reemplaza el 0 por el valor por defecto).
+   * Solo cae al valor por defecto si el campo está vacío o no es un número.
+   */
+  function numeroODefault(valorCrudo, valorPorDefecto) {
+    if (valorCrudo === '' || valorCrudo === null || valorCrudo === undefined) {
+      return valorPorDefecto;
+    }
+    const n = parseInt(valorCrudo, 10);
+    return Number.isNaN(n) ? valorPorDefecto : n;
+  }
+
   const api = {
     redondearAFactorEmpaque,
     calcularProyeccionProducto,
     calcularProyeccionExcel,
-    calcularNecesidadesKits
+    calcularNecesidadesKits,
+    numeroODefault
   };
 
   // Funciona tanto en el navegador (window.CalculoPedido) como en Node (tests)

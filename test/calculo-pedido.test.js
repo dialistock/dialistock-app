@@ -8,8 +8,35 @@ const {
   redondearAFactorEmpaque,
   calcularProyeccionProducto,
   calcularProyeccionExcel,
-  calcularNecesidadesKits
+  calcularNecesidadesKits,
+  numeroODefault
 } = require('../calculo-pedido.js');
+
+// ==================== numeroODefault (corrige el bug de "0 se revierte al default") ====================
+
+test('numeroODefault: respeta un 0 explícito en vez de reemplazarlo por el default', () => {
+  // Este es el bug real que encontramos: parseInt("0") || 12 da 12, no 0.
+  assert.equal(numeroODefault('0', 12), 0);
+});
+
+test('numeroODefault: campo vacío usa el valor por defecto', () => {
+  assert.equal(numeroODefault('', 12), 12);
+});
+
+test('numeroODefault: undefined/null (campo no encontrado en el DOM) usa el default', () => {
+  assert.equal(numeroODefault(undefined, 12), 12);
+  assert.equal(numeroODefault(null, 12), 12);
+});
+
+test('numeroODefault: texto no numérico usa el default', () => {
+  assert.equal(numeroODefault('abc', 12), 12);
+});
+
+test('numeroODefault: números normales pasan tal cual', () => {
+  assert.equal(numeroODefault('26', 12), 26);
+  assert.equal(numeroODefault('7', 12), 7);
+});
+
 
 // ==================== redondearAFactorEmpaque ====================
 

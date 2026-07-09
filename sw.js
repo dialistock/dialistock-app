@@ -1,5 +1,5 @@
-// DialiStock SW - v12.0 (login real con roles admin/lector)
-const CACHE_NAME = 'dialistock-v12';
+// DialiStock SW - v13.0 (fix demo/QR, bugs de stock de seguridad y demo mode eliminado)
+const CACHE_NAME = 'dialistock-v13';
 const ASSETS = [
   '/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png',
   '/css/styles.css',

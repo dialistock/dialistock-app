@@ -121,7 +121,7 @@ function addProduct() {
   const code = document.getElementById('new-code').value.trim().toUpperCase();
   const category = document.getElementById('new-category').value;
   const stock = parseInt(document.getElementById('new-stock').value) || 0;
-  const minStock = parseInt(document.getElementById('new-min').value) || 5;
+  const minStock = CalculoPedido.numeroODefault(document.getElementById('new-min').value, 5);
   const unit = document.getElementById('new-unit').value;
   const emoji = document.getElementById('new-emoji').value;
 

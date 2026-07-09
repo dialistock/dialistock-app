@@ -536,12 +536,27 @@ function aplicarConteoAlSistema() {
   if (!confirm(`¿Actualizar el stock del sistema al valor contado para los ${diferencias.length} productos con diferencia?\n\nEsto reemplazará el stock actual de DialiStock por lo contado físicamente.`)) return;
   diferencias.forEach(p => {
     const real = db.products.find(x => x.code === p.code);
-    if (real) real.stock = p.stockReal;
+    if (!real) return;
+    const prev = real.stock;
+    real.stock = p.stockReal;
     p.stock = p.stockReal;
+    db.movements.push({
+      id: genId(),
+      productId: real.id,
+      productName: real.name,
+      code: real.code,
+      type: p.stockReal >= prev ? 'entrada' : 'salida',
+      qty: Math.abs(p.stockReal - prev),
+      prevStock: prev,
+      newStock: real.stock,
+      note: 'Ajuste por Conteo Físico',
+      date: new Date().toISOString()
+    });
   });
   save();
   renderInvFisLista();
   finalizarInventario();
+  updateDashboard();
   showAlert('✅ Stock del sistema actualizado · ' + diferencias.length + ' productos ajustados', 'success');
 }
 

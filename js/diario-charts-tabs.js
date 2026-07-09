@@ -57,6 +57,11 @@ function agregarDiario() {
   var p = db.products.find(function(x) { return x.id === pid; });
   if (!p) return;
 
+  if (qty > p.stock) {
+    showAlert('Stock insuficiente (' + p.stock + ' ' + p.unit + ')', 'error');
+    return;
+  }
+
   // Check if already in diario - accumulate
   var existing = diarioDB.find(function(d) { return d.productId === pid; });
   if (existing) {
@@ -74,27 +79,90 @@ function agregarDiario() {
     });
   }
 
+  // Descontar stock real de DialiStock y dejar registro en Movimientos,
+  // igual que cualquier otra salida (antes esto solo quedaba en el diario
+  // interno, sin afectar el stock ni aparecer en el historial).
+  var prev = p.stock;
+  p.stock = Math.max(0, p.stock - qty);
+  db.movements.push({
+    id: genId(),
+    productId: p.id,
+    productName: p.name,
+    code: p.code,
+    type: 'salida',
+    qty: qty,
+    prevStock: prev,
+    newStock: p.stock,
+    note: 'Diario consumo' + (lote ? ' · Lote: ' + lote : ''),
+    date: new Date().toISOString()
+  });
+  save();
+
   saveDiario();
   document.getElementById('diario-qty').value = '';
   document.getElementById('diario-lote').value = '';
   renderDiario();
+  updateDashboard();
   showAlert('+' + qty + ' ' + p.name + ' agregado al diario', 'success');
 }
 
 function eliminarDiario(idx) {
   if (bloqueaPorSoloLectura()) return;
+  var entry = diarioDB[idx];
+  if (!entry) return;
+  // Restaurar el stock que se había descontado al agregar esta entrada,
+  // y dejar registro de la reversión en Movimientos.
+  var p = db.products.find(function(x) { return x.id === entry.productId; });
+  if (p) {
+    var prev = p.stock;
+    p.stock += entry.qty;
+    db.movements.push({
+      id: genId(),
+      productId: p.id,
+      productName: p.name,
+      code: p.code,
+      type: 'entrada',
+      qty: entry.qty,
+      prevStock: prev,
+      newStock: p.stock,
+      note: 'Reversión · eliminado de Diario',
+      date: new Date().toISOString()
+    });
+    save();
+  }
   diarioDB.splice(idx, 1);
   saveDiario();
   renderDiario();
+  updateDashboard();
 }
 
 function limpiarDiario() {
   if (bloqueaPorSoloLectura()) return;
-  if (!confirm('¿Limpiar el diario del día? Esta acción no se puede deshacer.')) return;
+  if (!confirm('¿Limpiar el diario del día? Esta acción no se puede deshacer.\n\nEsto restaurará el stock descontado por estas entradas.')) return;
+  diarioDB.forEach(function(entry) {
+    var p = db.products.find(function(x) { return x.id === entry.productId; });
+    if (!p) return;
+    var prev = p.stock;
+    p.stock += entry.qty;
+    db.movements.push({
+      id: genId(),
+      productId: p.id,
+      productName: p.name,
+      code: p.code,
+      type: 'entrada',
+      qty: entry.qty,
+      prevStock: prev,
+      newStock: p.stock,
+      note: 'Reversión · diario limpiado',
+      date: new Date().toISOString()
+    });
+  });
+  save();
   diarioDB = [];
   saveDiario();
   renderDiario();
-  showAlert('Diario limpiado', 'success');
+  updateDashboard();
+  showAlert('Diario limpiado · stock restaurado', 'success');
 }
 
 function agregarDiarioDesdeQR(productId, qty) {

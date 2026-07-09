@@ -1,5 +1,5 @@
-// DialiStock SW - v13.0 (fix demo/QR, bugs de stock de seguridad y demo mode eliminado)
-const CACHE_NAME = 'dialistock-v13';
+// DialiStock SW - v15.0 (Concentrado ACF-213/215 en planillas LMV/MJS)
+const CACHE_NAME = 'dialistock-v15';
 const ASSETS = [
   '/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png',
   '/css/styles.css',

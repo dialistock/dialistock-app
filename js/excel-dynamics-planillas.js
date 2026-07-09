@@ -461,7 +461,7 @@ function calcPlanilla(tipo) {
       fav15: f15, fav16: f16, fav17: f17, favkit: favkit,
       fav:   f15 + f16 + f17 + favkit,
       cvc:   gv(tipo+'-'+s+'-cvc'),
-      conc:  document.getElementById(tipo+'-'+s+'-conc')  ? document.getElementById(tipo+'-'+s+'-conc').value  : '924',
+      conc:  document.getElementById(tipo+'-'+s+'-conc')  ? document.getElementById(tipo+'-'+s+'-conc').value  : '213',
       apos:  document.getElementById(tipo+'-'+s+'-apos')  ? document.getElementById(tipo+'-'+s+'-apos').value  : 'primapore',
       sellado: document.getElementById(tipo+'-'+s+'-sellado') ? document.getElementById(tipo+'-'+s+'-sellado').value : 'heparina',
     };
@@ -475,10 +475,12 @@ function calcPlanilla(tipo) {
   const bibag900 = salas.map(s => Math.ceil((s.fav + s.cvc) / 3));
   const bibag650 = salas.map(s => Math.ceil((s.fav + s.cvc) / 3));
 
-  // Concentrado: nombre por sala según selección (924/925/926)
-  // Cantidad: ceil(pac * 3.4 / 2.5) por sala — igual para los 3 tipos
-  const concNombre = { '924': 'Concentrado Ácido 924-A', '925': 'Concentrado Ácido 925-A', '926': 'Concentrado Ácido 926-A' };
-  const concQty = salas.map(s => Math.ceil(((s.fav + s.cvc) * 3.4) / 2.5));
+  // Concentrado: nombre por sala según selección (213/215)
+  // Cantidad: ceil(pac * 3.4 / 2.5 / 2) por sala — dividido a la mitad
+  // porque ACF-213/215 vienen en envases de 10L (el doble de volumen que
+  // los concentrados anteriores de 5L, para los que se diseñó la fórmula).
+  const concNombre = { '213': 'Concentrado Ácido ACF-213', '215': 'Concentrado Ácido ACF-215' };
+  const concQty = salas.map(s => Math.ceil(((s.fav + s.cvc) * 3.4) / 2.5 / 2));
 
   // Agujas FAV por sala (nombre distinto si cambia la talla)
   // Apósito CVC por sala
@@ -561,7 +563,7 @@ function exportPlanilla(tipo) {
   const titulo = tipo === 'lmv' ? 'LUNES / MIERCOLES / VIERNES' : 'MARTES / JUEVES / SABADO';
   const label  = tipo === 'lmv' ? 'LMV' : 'MJS';
   const salas_cfg = ['s1','s2','s3'].map(s => ({
-    conc:  document.getElementById(tipo+'-'+s+'-conc')  ? document.getElementById(tipo+'-'+s+'-conc').value  : '924',
+    conc:  document.getElementById(tipo+'-'+s+'-conc')  ? document.getElementById(tipo+'-'+s+'-conc').value  : '213',
     apos:  document.getElementById(tipo+'-'+s+'-apos')  ? document.getElementById(tipo+'-'+s+'-apos').value  : 'primapore',
   }));
 
@@ -583,7 +585,7 @@ function exportPlanilla(tipo) {
 
   const bibag900     = salas.map(s => Math.ceil((s.fav+s.cvc)/3));
   const bibag650     = salas.map(s => Math.ceil((s.fav+s.cvc)/3));
-  const concentrado  = salas.map(s => Math.ceil(((s.fav+s.cvc)*3.4)/2.5));
+  const concentrado  = salas.map(s => Math.ceil(((s.fav+s.cvc)*3.4)/2.5/2));
 
   const articulos = [
     { nombre: 'Agujas FAV 15G',            s: salas.map(s => s.fav15*2) },

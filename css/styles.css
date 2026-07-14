@@ -104,6 +104,27 @@
     letter-spacing: 1px;
   }
 
+  .centro-btn {
+    flex-shrink: 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all .15s ease;
+    white-space: nowrap;
+  }
+  .centro-btn.active {
+    color: #fff;
+    background: linear-gradient(120deg, #0057A8, #0099cc);
+    border-color: transparent;
+  }
+
+
   /* TABS */
   .tabs {
     display: flex;

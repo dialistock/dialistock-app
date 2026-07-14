@@ -94,7 +94,9 @@
     </svg>
     <span style="display:flex;flex-direction:column;line-height:1.15">
       <span style="font-size:18px;font-weight:800;color:white;letter-spacing:-0.5px">Diali<span style="color:rgba(255,255,255,0.72)">Stock</span></span>
-      <span style="font-size:8px;font-weight:600;color:rgba(255,255,255,0.55);letter-spacing:2px;text-transform:uppercase">Gestion de Inventario</span>
+      <span style="font-size:8px;font-weight:600;color:rgba(255,255,255,0.55);letter-spacing:1px;text-transform:uppercase">
+        📍 <span id="centro-actual-nombre">Independencia</span> · <span id="centro-actual-codigo">C7848</span>
+      </span>
     </span>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
@@ -106,6 +108,8 @@
     <button id="dark-mode-btn" onclick="toggleDarkMode()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:5px 10px;cursor:pointer;font-size:16px;line-height:1;color:white" title="Modo oscuro/claro">🌙</button>
   </div>
 </header>
+
+<div id="centro-selector" style="display:none;gap:4px;padding:8px 10px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto"></div>
 
 <div id="readonly-banner" style="display:none;background:#f57c00;color:#fff;text-align:center;font-size:12px;font-weight:700;padding:6px 10px;font-family:'Inter',sans-serif">
   👁️ Modo solo lectura — puedes ver todo, pero los cambios están deshabilitados para tu cuenta
@@ -1876,6 +1880,7 @@
   </div>
 </div>
 
+<script src="js/centros.js"></script>
 <script src="js/data-init.js"></script>
 <script src="js/auth-login.js"></script>
 <script src="js/calculo-pedido.js"></script>

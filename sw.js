@@ -1,8 +1,9 @@
-// DialiStock SW - v15.0 (Concentrado ACF-213/215 en planillas LMV/MJS)
-const CACHE_NAME = 'dialistock-v15';
+// DialiStock SW - v16.0 (multi-centro, etapa 1: inventario y movimientos)
+const CACHE_NAME = 'dialistock-v16';
 const ASSETS = [
   '/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png',
   '/css/styles.css',
+  '/js/centros.js',
   '/js/data-init.js',
   '/js/auth-login.js',
   '/js/calculo-pedido.js',

@@ -8,26 +8,27 @@ function saveInvFisProgreso() {
     activo: invFisActivo,
     guardadoEn: new Date().toISOString()
   };
-  localStorage.setItem('ds_invfis_progreso', JSON.stringify(payload));
+  localStorage.setItem(lsKeyFor('ds_invfis_progreso'), JSON.stringify(payload));
   // También sincronizar a Firestore para recuperarlo desde otro dispositivo
   if (fbReady) {
     clearTimeout(window._invFisSyncTimeout);
+    const pathAlGuardar = fbPathFor('invfis_progreso');
     window._invFisSyncTimeout = setTimeout(() => {
-      fbDb.doc('dialistock_data/invfis_progreso').set(payload).catch(err => console.warn('No se pudo sincronizar progreso de conteo:', err));
+      fbDb.doc(pathAlGuardar).set(payload).catch(err => console.warn('No se pudo sincronizar progreso de conteo:', err));
     }, 1000);
   }
 }
 
 function cargarInvFisProgreso() {
   try {
-    const raw = localStorage.getItem('ds_invfis_progreso');
+    const raw = localStorage.getItem(lsKeyFor('ds_invfis_progreso'));
     if (!raw) return null;
     return JSON.parse(raw);
   } catch (e) { return null; }
 }
 
 function limpiarInvFisProgreso() {
-  localStorage.removeItem('ds_invfis_progreso');
+  localStorage.removeItem(lsKeyFor('ds_invfis_progreso'));
 }
 
 const CONTEO_PRECARGADO_25_06 = {"102-101-002": 24, "102-101-003": 114, "102-101-001": 108, "102-105-011": 90, "102-105-012": 90, "101-108-005": 884, "101-108-002": 850, "101-108-003": 1150, "101-108-004": 50, "101-106-003": 352, "101-106-005": 53, "101-108-006": 870, "102-106-001": 12, "105-102-002": 16, "101-108-013": 80, "101-108-014": 52, "101-108-012": 80, "101-106-008": 187, "102-105-060": 255, "101-103-002": 28, "101-103-003": 9, "101-103-004": 155, "101-103-013": 48, "102-105-064": 31, "102-105-065": 45, "102-105-027": 850, "102-105-028": 220, "102-105-029": 8, "102-105-032": 3900, "102-105-034": 6700, "102-103-008": 156, "102-103-002": 2600, "102-103-003": 2300, "102-103-011": 5400, "102-103-012": 6900, "102-103-005": 4000, "102-103-004": 3800, "103-101-001": 370, "102-105-037": 1600, "102-105-038": 3350, "102-105-039": 2000, "102-105-040": 2000, "109-101-001": 120, "102-105-042": 2250, "102-110-004": 26000, "102-105-046": 100, "102-105-047": 2500, "102-105-048": 140, "102-106-002": 12, "102-105-052": 12, "101-106-009": 610, "101-106-012": 127, "101-106-011": 450, "102-105-055": 2650, "102-105-057": 408, "101-101-003": 17400, "102-101-004": 114, "101-101-004": 120, "101-101-005": 57, "101-103-009": 21, "101-103-010": 0, "101-103-016": 72, "101-108-036": 108, "101-108-037": 28, "102-101-007": 36, "102-103-006": 2000, "102-103-013": 6600, "102-105-018": 300, "102-105-024": 80, "102-105-026": 300, "102-105-044": 1100, "102-105-067": 200, "102-106-003": 10, "102-106-005": 10};
@@ -53,7 +54,9 @@ function iniciarInventario() {
     }
   }
 
-  const precargar = confirm('¿Precargar el conteo físico realizado hoy (25-06)?\n\nSe completarán automáticamente los productos ya contados. Podrás revisar y ajustar cualquier valor antes de generar el informe.');
+  const precargar = currentCentro === 'independencia'
+    ? confirm('¿Precargar el conteo físico realizado hoy (25-06)?\n\nSe completarán automáticamente los productos ya contados. Podrás revisar y ajustar cualquier valor antes de generar el informe.')
+    : false;
   invFisData = db.products.map(p => {
     if (precargar && CONTEO_PRECARGADO_25_06[p.code] !== undefined) {
       return { ...p, stockReal: CONTEO_PRECARGADO_25_06[p.code], contado: true };
@@ -275,15 +278,16 @@ function getRecomendacion(p, diff, pctDiff) {
 }
 
 // ==================== HISTORIAL DE INVENTARIOS ====================
-let invFisHistorial = JSON.parse(localStorage.getItem('ds_invfis_historial') || '[]');
+let invFisHistorial = JSON.parse(localStorage.getItem(lsKeyFor('ds_invfis_historial')) || '[]');
 
 function saveHistorial() {
-  localStorage.setItem('ds_invfis_historial', JSON.stringify(invFisHistorial));
-  localStorage.setItem('ds_invfis_historial_last_save', String(Date.now()));
+  localStorage.setItem(lsKeyFor('ds_invfis_historial'), JSON.stringify(invFisHistorial));
+  localStorage.setItem(lsKeyFor('ds_invfis_historial_last_save'), String(Date.now()));
   if (fbReady) {
     clearTimeout(window._historialSyncTimeout);
+    const pathAlGuardar = fbPathFor('invfis_historial');
     window._historialSyncTimeout = setTimeout(() => {
-      fbDb.doc('dialistock_data/invfis_historial').set({
+      fbDb.doc(pathAlGuardar).set({
         historial: invFisHistorial,
         updatedAtLocal: new Date().toISOString()
       }).catch(err => console.warn('No se pudo sincronizar historial:', err));
@@ -294,15 +298,15 @@ function saveHistorial() {
 async function cargarHistorialDesdeFirestore() {
   if (!fbReady) return;
   try {
-    const snap = await fbDb.doc('dialistock_data/invfis_historial').get();
+    const snap = await fbDb.doc(fbPathFor('invfis_historial')).get();
     if (!snap.exists) return;
     const remoto = snap.data();
     const remotoLocal = remoto.updatedAtLocal ? new Date(remoto.updatedAtLocal).getTime() : 0;
-    const localTimestamp = parseInt(localStorage.getItem('ds_invfis_historial_last_save') || '0');
+    const localTimestamp = parseInt(localStorage.getItem(lsKeyFor('ds_invfis_historial_last_save')) || '0');
     if (remotoLocal > localTimestamp && Array.isArray(remoto.historial)) {
       invFisHistorial = remoto.historial;
-      localStorage.setItem('ds_invfis_historial', JSON.stringify(invFisHistorial));
-      localStorage.setItem('ds_invfis_historial_last_save', String(remotoLocal));
+      localStorage.setItem(lsKeyFor('ds_invfis_historial'), JSON.stringify(invFisHistorial));
+      localStorage.setItem(lsKeyFor('ds_invfis_historial_last_save'), String(remotoLocal));
       renderHistorialSummary();
     }
   } catch (err) {
@@ -563,10 +567,10 @@ function aplicarConteoAlSistema() {
 window._invFisNotas = window._invFisNotas || {};
 function guardarNotaInventario(code, valor) {
   window._invFisNotas[code] = valor;
-  localStorage.setItem('ds_invfis_notas', JSON.stringify(window._invFisNotas));
+  localStorage.setItem(lsKeyFor('ds_invfis_notas'), JSON.stringify(window._invFisNotas));
 }
 (function loadInvFisNotas() {
-  try { window._invFisNotas = JSON.parse(localStorage.getItem('ds_invfis_notas') || '{}'); } catch(e) { window._invFisNotas = {}; }
+  try { window._invFisNotas = JSON.parse(localStorage.getItem(lsKeyFor('ds_invfis_notas')) || '{}'); } catch(e) { window._invFisNotas = {}; }
 })();
 
 async function exportarInventarioFisico() {

@@ -8,22 +8,38 @@ service cloud.firestore {
              && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
 
-    // Debe tener un documento en dialistock_usuarios con rol == 'admin'.
-    function esAdmin() {
-      return esUsuarioReal()
-             && exists(/databases/$(database)/documents/dialistock_usuarios/$(request.auth.uid))
-             && get(/databases/$(database)/documents/dialistock_usuarios/$(request.auth.uid)).data.rol == 'admin';
+    // Rol de la cuenta actual en un centro dado ('admin' | 'lector' | null).
+    // Si el perfil no existe, get() lanza y la regla deniega — comportamiento
+    // seguro por defecto.
+    function rolEnCentro(centroId) {
+      let perfil = get(/databases/$(database)/documents/dialistock_usuarios/$(request.auth.uid)).data;
+      return (centroId in perfil.centros) ? perfil.centros[centroId] : null;
     }
 
-    // Los 3 documentos que usa DialiStock: cualquier cuenta real puede leer
-    // (para poder ver el inventario), pero solo un admin puede escribir.
+    function tieneAccesoACentro(centroId) {
+      return esUsuarioReal() && rolEnCentro(centroId) != null;
+    }
+
+    function esAdminDeCentro(centroId) {
+      return esUsuarioReal() && rolEnCentro(centroId) == 'admin';
+    }
+
+    // Independencia: ruta histórica — no se toca la estructura ya existente.
     match /dialistock_data/{docId} {
-      allow read: if esUsuarioReal();
-      allow write: if esAdmin() && docId in ['main', 'invfis_progreso', 'invfis_historial'];
+      allow read: if tieneAccesoACentro('independencia');
+      allow write: if esAdminDeCentro('independencia')
+                   && docId in ['main', 'invfis_progreso', 'invfis_historial'];
     }
 
-    // Cada persona puede leer su propio perfil (para saber su rol). Los
-    // roles se asignan a mano desde la consola de Firebase, no desde la app.
+    // Centros nuevos (Recoleta, Conchalí, Huechuraba, y los que se agreguen).
+    match /centros/{centroId}/data/{docId} {
+      allow read: if tieneAccesoACentro(centroId);
+      allow write: if esAdminDeCentro(centroId)
+                   && docId in ['main', 'invfis_progreso', 'invfis_historial'];
+    }
+
+    // Cada persona puede leer su propio perfil (para saber sus centros y
+    // roles). Los accesos se asignan a mano desde la consola de Firebase.
     match /dialistock_usuarios/{uid} {
       allow read: if esUsuarioReal() && request.auth.uid == uid;
       allow write: if false;

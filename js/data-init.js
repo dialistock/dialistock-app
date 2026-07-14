@@ -14,7 +14,7 @@ window.onerror = function(msg, src, line, col, err) {
 };
 
 // ==================== DATA ====================
-let db = JSON.parse(localStorage.getItem('dialistock_db') || '{"products":[],"movements":[]}');
+let db = JSON.parse(localStorage.getItem(lsKeyFor('dialistock_db')) || '{"products":[],"movements":[]}');
 let scannerActive = false;
 let html5QrCode = null;
 let currentProduct = null;
@@ -32,7 +32,8 @@ const firebaseConfig = {
 };
 
 let fbApp = null, fbDb = null, fbReady = false;
-const FB_DOC_PATH = 'dialistock_data/main';
+// La ruta de Firestore ya no es fija — depende del centro activo.
+// Ver centros.js → fbPathFor().
 
 // fbAuthPromise se resuelve cuando hay una sesión REAL (no anónima) iniciada
 // con éxito — ver auth-login.js. Las reglas de seguridad de Firestore exigen
@@ -68,15 +69,20 @@ function setSyncIndicator(state) {
 
 let _syncTimeout = null;
 function save() {
-  localStorage.setItem('dialistock_db', JSON.stringify(db));
-  localStorage.setItem('dialistock_last_local_save', String(Date.now()));
+  localStorage.setItem(lsKeyFor('dialistock_db'), JSON.stringify(db));
+  localStorage.setItem(lsKeyFor('dialistock_last_local_save'), String(Date.now()));
   // Debounce la subida a Firestore para no saturar con escrituras (espera 800ms de inactividad)
   if (!fbReady) { setSyncIndicator('offline'); return; }
   clearTimeout(_syncTimeout);
   setSyncIndicator('syncing');
+  // Se capturan la ruta Y el contenido AHORA (no dentro del timeout), para
+  // que un cambio de centro durante el debounce no termine escribiendo los
+  // datos del centro nuevo en la ruta del centro viejo (o viceversa).
+  const pathAlGuardar = fbPathFor('main');
+  const dataAlGuardar = JSON.stringify(db);
   _syncTimeout = setTimeout(() => {
-    fbDb.doc(FB_DOC_PATH).set({
-      data: JSON.stringify(db),
+    fbDb.doc(pathAlGuardar).set({
+      data: dataAlGuardar,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAtLocal: new Date().toISOString()
     }).then(() => setSyncIndicator('synced'))
@@ -88,15 +94,15 @@ async function cargarDesdeFirestore() {
   if (!fbReady) { setSyncIndicator('offline'); return; }
   setSyncIndicator('syncing');
   try {
-    const snap = await fbDb.doc(FB_DOC_PATH).get();
+    const snap = await fbDb.doc(fbPathFor('main')).get();
     if (!snap.exists) { setSyncIndicator('synced'); return; }
     const remoto = snap.data();
     const remotoLocal = remoto.updatedAtLocal ? new Date(remoto.updatedAtLocal).getTime() : 0;
-    const localTimestamp = parseInt(localStorage.getItem('dialistock_last_local_save') || '0');
+    const localTimestamp = parseInt(localStorage.getItem(lsKeyFor('dialistock_last_local_save')) || '0');
     if (remotoLocal > localTimestamp) {
       db = JSON.parse(remoto.data);
-      localStorage.setItem('dialistock_db', JSON.stringify(db));
-      localStorage.setItem('dialistock_last_local_save', String(remotoLocal));
+      localStorage.setItem(lsKeyFor('dialistock_db'), JSON.stringify(db));
+      localStorage.setItem(lsKeyFor('dialistock_last_local_save'), String(remotoLocal));
       if (typeof updateDashboard === 'function') updateDashboard();
       if (typeof renderHistorialSummary === 'function') renderHistorialSummary();
       showAlert('☁️ Datos actualizados desde la nube', 'info');

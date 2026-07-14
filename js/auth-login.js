@@ -13,7 +13,7 @@
 let currentUser = null; // { uid, email, nombre, rol }
 
 function esAdmin() {
-  return !!currentUser && currentUser.rol === 'admin';
+  return !!currentUser && !!currentUser.centros && currentUser.centros[currentCentro] === 'admin';
 }
 
 // Se llama al inicio de cada función que modifica datos (agregar, eliminar,
@@ -81,29 +81,51 @@ async function cargarPerfilUsuario(user) {
     const snap = await fbDb.collection('dialistock_usuarios').doc(user.uid).get();
     if (snap.exists) {
       const data = snap.data();
-      currentUser = { uid: user.uid, email: user.email, nombre: data.nombre || user.email, rol: data.rol === 'admin' ? 'admin' : 'lector' };
+      let centros = data.centros;
+      // Compatibilidad con perfiles creados antes de multi-centro (solo
+      // tenían un campo `rol` plano) → se tratan como acceso únicamente a
+      // Independencia con ese mismo rol, para no dejar a nadie sin acceso.
+      if (!centros && data.rol) {
+        centros = { independencia: data.rol === 'admin' ? 'admin' : 'lector' };
+      }
+      currentUser = { uid: user.uid, email: user.email, nombre: data.nombre || user.email, centros: centros || {} };
     } else {
       // Cuenta autenticada pero sin perfil creado todavía en dialistock_usuarios
-      // → solo lectura por defecto, nunca acceso de edición por accidente.
-      currentUser = { uid: user.uid, email: user.email, nombre: user.email, rol: 'lector' };
+      // → sin acceso a ningún centro, nunca acceso de edición por accidente.
+      currentUser = { uid: user.uid, email: user.email, nombre: user.email, centros: {} };
       if (typeof showAlert === 'function') {
-        showAlert('Tu cuenta no tiene un rol asignado todavía. Pídele al administrador que te lo asigne — por ahora solo puedes ver.', 'warning');
+        showAlert('Tu cuenta no tiene centros asignados todavía. Pídele al administrador que te dé acceso.', 'warning');
       }
     }
   } catch (e) {
-    console.warn('No se pudo cargar el perfil de usuario, se asume solo lectura:', e);
-    currentUser = { uid: user.uid, email: user.email, nombre: user.email, rol: 'lector' };
+    console.warn('No se pudo cargar el perfil de usuario, se asume sin acceso:', e);
+    currentUser = { uid: user.uid, email: user.email, nombre: user.email, centros: {} };
   }
+
+  // Si el centro activo no está entre los accesos de esta cuenta, cae al
+  // primero disponible — evita quedar "atascado" viendo un centro sin
+  // permiso o una pantalla vacía sin explicación.
+  if (!currentUser.centros[currentCentro]) {
+    const disponibles = Object.keys(currentUser.centros);
+    if (disponibles.length) {
+      currentCentro = disponibles[0];
+      localStorage.setItem('ds_centro_actual', currentCentro);
+    }
+  }
+
   actualizarUIRolUsuario();
+  if (typeof actualizarUICentro === 'function') actualizarUICentro();
+  if (typeof renderSelectorCentros === 'function') renderSelectorCentros();
 }
 
 function actualizarUIRolUsuario() {
   const nameEl = document.getElementById('user-name-badge');
   const roleEl = document.getElementById('user-role-badge');
   const banner = document.getElementById('readonly-banner');
+  const rolActual = typeof rolEnCentroActual === 'function' ? rolEnCentroActual() : null;
   if (nameEl) nameEl.textContent = currentUser ? currentUser.nombre : '';
-  if (roleEl) roleEl.textContent = currentUser ? (currentUser.rol === 'admin' ? '👑 Admin' : '👁️ Solo lectura') : '';
-  if (banner) banner.style.display = (currentUser && currentUser.rol !== 'admin') ? 'block' : 'none';
+  if (roleEl) roleEl.textContent = rolActual === 'admin' ? '👑 Admin' : (rolActual === 'lector' ? '👁️ Solo lectura' : '⛔ Sin acceso');
+  if (banner) banner.style.display = (rolActual && rolActual !== 'admin') ? 'block' : 'none';
 }
 
 try {
@@ -114,10 +136,16 @@ try {
       if (typeof resolveFbAuth === 'function') resolveFbAuth();
       ocultarLoginOverlay();
       cargarPerfilUsuario(user).then(function () {
-        // Refresca datos de Firestore al iniciar sesión (cubre tanto el
-        // primer login de la sesión como un cierre/inicio de sesión posterior).
-        if (typeof cargarDesdeFirestore === 'function') cargarDesdeFirestore();
-        if (typeof cargarHistorialDesdeFirestore === 'function') cargarHistorialDesdeFirestore();
+        // Recarga el centro activo (puede haber cambiado dentro de
+        // cargarPerfilUsuario si la cuenta no tenía acceso al centro por
+        // defecto) — cargarCentroActual() ya hace la secuencia completa:
+        // local → semilla si es centro nuevo → Firestore por encima.
+        if (typeof cargarCentroActual === 'function') {
+          cargarCentroActual();
+        } else {
+          if (typeof cargarDesdeFirestore === 'function') cargarDesdeFirestore();
+          if (typeof cargarHistorialDesdeFirestore === 'function') cargarHistorialDesdeFirestore();
+        }
       });
     } else {
       fbReady = false;

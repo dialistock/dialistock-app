@@ -527,7 +527,9 @@ function finalizarInventario() {
     `<div style="display:flex;gap:8px;margin-top:6px">
       <button class="btn" style="flex:1;background:var(--danger);color:#fff;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif" onclick="aplicarConteoAlSistema()">✓ Aplicar al sistema</button>
       <button class="btn" style="flex:1;background:var(--accent2);color:#fff;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif" onclick="exportarInventarioFisico()">⬇ Exportar Excel</button>
-    </div>`;
+    </div>
+    <button class="btn" style="width:100%;margin-top:8px;background:#f57c00;color:#fff;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif" onclick="compararConUltimoInventario()">🔄 Comparar con inventario anterior</button>
+    <div id="comparacion-auto-resultado" style="margin-top:12px"></div>`;
 
   registrarSnapshotHistorial('automático');
   showAlert('Informe generado · ' + diferencias.length + ' diferencias · Impacto neto ' + (impactoNeto<0?'-':'+') + fmt(Math.abs(impactoNeto)), 'warning');
@@ -675,6 +677,186 @@ async function exportarInventarioFisico() {
   showAlert('✅ Informe valorizado exportado (Excel)', 'success');
 }
 
+// ==================== COMPARACIÓN AUTOMÁTICA (último vs actual) ====================
+let _ultimaComparacionAuto = null;
+
+function compararConUltimoInventario() {
+  if (invFisHistorial.length < 2) {
+    showAlert('Todavía no hay un inventario anterior guardado para comparar. Este quedará guardado como el primero.', 'info');
+    return;
+  }
+  const actual = invFisHistorial[0];
+  const anterior = invFisHistorial[1];
+
+  const mapA = {}; anterior.productos.forEach(p => mapA[p.code] = p);
+  const mapB = {}; actual.productos.forEach(p => mapB[p.code] = p);
+  const allCodes = [...new Set([...Object.keys(mapA), ...Object.keys(mapB)])];
+
+  const filas = allCodes.map(code => {
+    const pa = mapA[code], pb = mapB[code];
+    const realA = pa ? pa.stockReal : null;
+    const realB = pb ? pb.stockReal : null;
+    if (realA === realB) return null;
+    const nombre = (pb || pa).name;
+    const emoji = (pb || pa).emoji;
+    const price = (pb || pa).price || 0;
+    const delta = (realB ?? 0) - (realA ?? 0);
+    return { code, nombre, emoji, realA, realB, delta, valor: delta * price };
+  }).filter(Boolean).sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
+
+  const deltaImpacto = actual.totales.impactoNeto - anterior.totales.impactoNeto;
+  _ultimaComparacionAuto = { anterior, actual, filas, deltaImpacto };
+
+  renderComparacionAutoResultado();
+  showAlert('📊 Comparado ' + anterior.fechaLabel + ' → ' + actual.fechaLabel, 'success');
+}
+
+function renderComparacionAutoResultado() {
+  const cont = document.getElementById('comparacion-auto-resultado');
+  if (!cont || !_ultimaComparacionAuto) return;
+  const { anterior, actual, filas, deltaImpacto } = _ultimaComparacionAuto;
+  const fmt = (n) => (n < 0 ? '-' : '+') + '$' + Math.abs(Math.round(n)).toLocaleString('es-CL');
+
+  cont.innerHTML = `
+    <div style="background:rgba(245,124,0,0.06);border:1.5px solid rgba(245,124,0,0.25);border-radius:12px;padding:12px;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:#f57c00;margin-bottom:6px">🔄 ${anterior.fechaLabel} → ${actual.fechaLabel}</div>
+      <div style="display:flex;justify-content:space-between;font-size:12px">
+        <span>Variación impacto neto:</span>
+        <strong style="color:${deltaImpacto < 0 ? 'var(--danger)' : 'var(--accent)'}">${fmt(deltaImpacto)}</strong>
+      </div>
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">${filas.length} productos con cambio de stock real entre ambas fechas</div>` +
+    filas.slice(0, 30).map(f => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:11px;flex:1;min-width:0">${f.emoji} ${f.nombre}</div>
+        <div style="font-size:11px;color:var(--muted);white-space:nowrap">${f.realA ?? '—'} → ${f.realB ?? '—'}</div>
+        <div style="font-family:'Inter',sans-serif;font-size:12px;font-weight:800;color:${f.delta < 0 ? 'var(--danger)' : 'var(--accent)'};margin-left:8px">${f.delta > 0 ? '+' : ''}${f.delta}</div>
+      </div>`).join('') +
+    `<div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn" style="flex:1;background:var(--accent2);color:#fff;border:none;border-radius:10px;padding:10px;font-weight:700;font-size:12px;cursor:pointer;font-family:'Inter',sans-serif" onclick="exportarComparacionExcel()">⬇ Excel</button>
+      <button class="btn" style="flex:1;background:var(--danger);color:#fff;border:none;border-radius:10px;padding:10px;font-weight:700;font-size:12px;cursor:pointer;font-family:'Inter',sans-serif" onclick="exportarComparacionPDF()">⬇ PDF</button>
+    </div>`;
+}
+
+async function exportarComparacionExcel() {
+  if (!_ultimaComparacionAuto) return;
+  const { anterior, actual, filas, deltaImpacto } = _ultimaComparacionAuto;
+  showAlert('Generando Excel...', 'info');
+
+  const DAVITA_BLUE = 'FF0057A8', RED = 'FFC8102E', BLUE_TXT = 'FF0099CC', WHITE = 'FFFFFFFF';
+  const centroNombre = getCentroInfo().nombre;
+  const centroCodigo = getCentroInfo().codigo;
+
+  const workbook = new ExcelJS.Workbook();
+  const ws = workbook.addWorksheet('Comparación Inventarios');
+  ws.columns = [{ width: 14 }, { width: 42 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 14 }];
+
+  ws.mergeCells('A1:F1'); ws.getCell('A1').value = 'COMPARACIÓN DE INVENTARIOS · DIALISTOCK';
+  ws.getCell('A1').font = { bold: true, size: 16, color: { argb: WHITE } };
+  ws.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DAVITA_BLUE } };
+  ws.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+  ws.getRow(1).height = 26;
+
+  ws.mergeCells('A2:F2'); ws.getCell('A2').value = `DaVita Chile · Centro ${centroNombre} ${centroCodigo}`;
+  ws.getCell('A2').font = { bold: true, size: 11, color: { argb: WHITE } };
+  ws.getCell('A2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DAVITA_BLUE } };
+  ws.getCell('A2').alignment = { horizontal: 'center' };
+
+  ws.mergeCells('A3:F3'); ws.getCell('A3').value = `${anterior.fechaLabel}  →  ${actual.fechaLabel}`;
+  ws.getCell('A3').font = { size: 10, color: { argb: WHITE } };
+  ws.getCell('A3').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DAVITA_BLUE } };
+  ws.getCell('A3').alignment = { horizontal: 'center' };
+
+  ws.getCell('A5').value = 'Variación impacto neto'; ws.getCell('A5').font = { bold: true, size: 12 };
+  ws.getCell('B5').value = Math.round(deltaImpacto); ws.getCell('B5').numFmt = '$#,##0;-$#,##0';
+  ws.getCell('B5').font = { bold: true, size: 12, color: { argb: deltaImpacto < 0 ? RED : BLUE_TXT } };
+
+  const headers = ['Código', 'Nombre', `Real ${anterior.fechaLabel}`, `Real ${actual.fechaLabel}`, 'Diferencia', 'Impacto $'];
+  const headerRow = ws.getRow(7);
+  headers.forEach((h, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = h;
+    cell.font = { bold: true, color: { argb: WHITE }, size: 10 };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DAVITA_BLUE } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  });
+  headerRow.height = 20;
+
+  filas.forEach((f, i) => {
+    const rowNum = 8 + i;
+    const row = ws.getRow(rowNum);
+    const bg = f.delta < 0 ? 'FFFDE8E8' : 'FFE8F4FB';
+    const txt = f.delta < 0 ? RED : BLUE_TXT;
+    const vals = [f.code, f.nombre, f.realA ?? 'N/C', f.realB ?? 'N/C', f.delta, Math.round(f.valor)];
+    vals.forEach((v, ci) => {
+      const cell = row.getCell(ci + 1);
+      cell.value = v;
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      cell.font = { size: 10, color: { argb: txt }, bold: ci === 5 };
+      cell.alignment = { vertical: 'middle' };
+      if (ci === 5) cell.numFmt = '$#,##0;-$#,##0';
+    });
+  });
+
+  ws.views = [{ state: 'frozen', ySplit: 7 }];
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/octet-stream' });
+  saveAs(blob, 'Comparacion_Inventarios_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+  showAlert('✅ Comparación exportada (Excel)', 'success');
+}
+
+function exportarComparacionPDF() {
+  if (!_ultimaComparacionAuto) return;
+  const { anterior, actual, filas, deltaImpacto } = _ultimaComparacionAuto;
+  showAlert('Generando PDF...', 'info');
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const centroNombre = getCentroInfo().nombre;
+  const centroCodigo = getCentroInfo().codigo;
+  const fmt = (n) => (n < 0 ? '-$' : '+$') + Math.abs(Math.round(n)).toLocaleString('es-CL');
+
+  doc.setFillColor(0, 87, 168);
+  doc.rect(0, 0, 210, 22, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.text('COMPARACIÓN DE INVENTARIOS · DIALISTOCK', 105, 10, { align: 'center' });
+  doc.setFontSize(10);
+  doc.text(`DaVita Chile · Centro ${centroNombre} ${centroCodigo}`, 105, 17, { align: 'center' });
+
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(11);
+  doc.text(`${anterior.fechaLabel}  →  ${actual.fechaLabel}`, 14, 30);
+  doc.setFontSize(12);
+  doc.setTextColor(deltaImpacto < 0 ? 200 : 0, deltaImpacto < 0 ? 16 : 100, deltaImpacto < 0 ? 46 : 180);
+  doc.text('Variación impacto neto: ' + fmt(deltaImpacto), 14, 38);
+  doc.setTextColor(0, 0, 0);
+
+  const body = filas.map(f => [
+    f.code, f.nombre, f.realA ?? 'N/C', f.realB ?? 'N/C',
+    (f.delta > 0 ? '+' : '') + f.delta, fmt(f.valor)
+  ]);
+
+  doc.autoTable({
+    startY: 44,
+    head: [['Código', 'Nombre', `Real ${anterior.fechaLabel}`, `Real ${actual.fechaLabel}`, 'Dif.', 'Impacto $']],
+    body,
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [0, 87, 168], textColor: [255, 255, 255] },
+    didParseCell: function (data) {
+      if (data.section === 'body' && data.column.index === 5) {
+        const val = filas[data.row.index]?.valor;
+        if (val < 0) data.cell.styles.textColor = [200, 16, 46];
+        else if (val > 0) data.cell.styles.textColor = [0, 100, 180];
+      }
+    }
+  });
+
+  doc.save('Comparacion_Inventarios_' + new Date().toISOString().slice(0, 10) + '.pdf');
+  showAlert('✅ Comparación exportada (PDF)', 'success');
+}
+// ==================== /COMPARACIÓN AUTOMÁTICA ====================
+
 // ==================== MERMAS ====================
 function renderMermas() {
   const movsDev = db.movements.filter(m => m.type === 'devolucion');
@@ -706,4 +888,3 @@ function renderMermas() {
     </div>`;
   }).join('');
 }
-

@@ -865,7 +865,7 @@ function renderMermas() {
   document.getElementById('merma-total-units').textContent = totalUnits;
   const lista = document.getElementById('merma-lista');
   if (!lista) return;
-  if (!movsDev.length) { lista.innerHTML = '<div class="empty-state" data-icon="📉"><p>Sin devoluciones</p><small>Los datos aparecerán cuando haya mermas</small></div>'; return; }
+  if (!movsDev.length) { lista.innerHTML = '<div class="empty-state" data-icon="📉"><p>Sin devoluciones</p><small>Los datos aparecerán cuando haya devoluciones</small></div>'; return; }
   const agg = {};
   movsDev.forEach(m => {
     if (!agg[m.productId]) agg[m.productId] = { name: m.productName, code: m.code, total: 0, count: 0 };

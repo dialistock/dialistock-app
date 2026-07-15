@@ -30,7 +30,7 @@ function renderProyeccion() {
 
   const consumo = {};
   db.movements
-    .filter(m => m.type === 'salida' && new Date(m.date) >= periodoStart)
+    .filter(m => m.type === 'salida' && new Date(m.date) >= periodoStart && CalculoPedido.esConsumoValidoParaProyeccion(m.date))
     .forEach(m => {
       if (!consumo[m.productId]) consumo[m.productId] = 0;
       consumo[m.productId] += m.qty;
@@ -297,7 +297,7 @@ function renderReconciliacion() {
   const now = new Date();
   const periodoStart = new Date(now.getTime() - periodo * 24 * 60 * 60 * 1000);
   const consumo = {};
-  db.movements.filter(m => m.type === 'salida' && new Date(m.date) >= periodoStart).forEach(m => {
+  db.movements.filter(m => m.type === 'salida' && new Date(m.date) >= periodoStart && CalculoPedido.esConsumoValidoParaProyeccion(m.date)).forEach(m => {
     const p = db.products.find(x => x.id === m.productId);
     if (p) consumo[p.code] = (consumo[p.code] || 0) + m.qty;
   });
@@ -334,7 +334,7 @@ function exportarProyeccion() {
   const now = new Date();
   const periodoStart = new Date(now.getTime() - periodo * 24 * 60 * 60 * 1000);
   const consumo = {};
-  db.movements.filter(m => m.type === 'salida' && new Date(m.date) >= periodoStart)
+  db.movements.filter(m => m.type === 'salida' && new Date(m.date) >= periodoStart && CalculoPedido.esConsumoValidoParaProyeccion(m.date))
     .forEach(m => { if (!consumo[m.productId]) consumo[m.productId] = 0; consumo[m.productId] += m.qty; });
 
   const rows = db.products
@@ -724,4 +724,3 @@ function exportExcelProjPDF() {
   doc.save(`DialiStock_Pedido_${mes.replace(/\s/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`);
   showAlert('✅ PDF detallado exportado', 'success');
 }
-

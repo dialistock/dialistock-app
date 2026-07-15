@@ -23,6 +23,25 @@
   }
 
   /**
+   * Determina si un movimiento de salida debe contarse como consumo real de
+   * pacientes al calcular la base de la Proyección de Pedido.
+   *
+   * Los domingos, en los centros, se hacen "consumos" que en realidad son
+   * ajustes para cuadrar algún insumo — no reflejan atención real de
+   * pacientes. Si se suman igual que un día normal, distorsionan el
+   * promedio diario y la proyección termina sobre o subestimando el pedido.
+   * Por eso se excluyen de la base de cálculo (el movimiento sigue existiendo
+   * y sigue afectando el stock real — solo no cuenta para este cálculo).
+   *
+   * @param {string} fechaISO - fecha del movimiento (m.date)
+   * @returns {boolean} true si el movimiento debe contarse como consumo típico
+   */
+  function esConsumoValidoParaProyeccion(fechaISO) {
+    const dia = new Date(fechaISO).getDay(); // 0 = domingo
+    return dia !== 0;
+  }
+
+  /**
    * Fórmula usada en la pestaña "Proyección" en vivo (renderProyeccion).
    * Calcula cuánto pedir de un producto a partir de su consumo histórico.
    *
@@ -147,6 +166,7 @@
 
   const api = {
     redondearAFactorEmpaque,
+    esConsumoValidoParaProyeccion,
     calcularProyeccionProducto,
     calcularProyeccionExcel,
     calcularNecesidadesKits,

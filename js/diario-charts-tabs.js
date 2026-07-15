@@ -3,6 +3,45 @@ let diarioDB = JSON.parse(localStorage.getItem('ds_diario') || '[]');
 
 function saveDiario() { localStorage.setItem('ds_diario', JSON.stringify(diarioDB)); }
 
+// Compara el consumo de hoy de cada producto en el diario contra su
+// promedio histórico diario (últimos 30 días, excluyendo hoy) para detectar
+// posibles errores de digitación antes de cargar a Dynamics. No excluye
+// nada automáticamente — solo marca para que la persona revise.
+function detectarAnomaliasDiario() {
+  const hoyStr = new Date().toLocaleDateString('es-CL');
+  const desde = new Date();
+  desde.setDate(desde.getDate() - 30);
+  const alertas = [];
+
+  diarioDB.forEach(function (d) {
+    const histPorDia = {};
+    db.movements.forEach(function (m) {
+      if (m.type !== 'salida' || m.productId !== d.productId) return;
+      const fechaMov = new Date(m.date);
+      if (fechaMov < desde) return;
+      const fechaLabel = fechaMov.toLocaleDateString('es-CL');
+      if (fechaLabel === hoyStr) return; // no comparar el día de hoy contra sí mismo
+      histPorDia[fechaLabel] = (histPorDia[fechaLabel] || 0) + m.qty;
+    });
+
+    const valoresDiarios = Object.values(histPorDia);
+    if (!valoresDiarios.length) return; // sin historial suficiente para comparar, no se marca
+
+    const promedio = valoresDiarios.reduce(function (a, b) { return a + b; }, 0) / valoresDiarios.length;
+    const umbral = Math.max(promedio * 2, promedio + 5);
+    if (d.qty > umbral && (d.qty - promedio) >= 5) {
+      alertas.push({
+        nombre: d.nombre,
+        codigo: d.codigo,
+        qty: d.qty,
+        promedio: Math.round(promedio * 10) / 10
+      });
+    }
+  });
+
+  return alertas;
+}
+
 function renderDiario() {
   // Populate product select
   var sel = document.getElementById('diario-producto');
@@ -30,10 +69,18 @@ function renderDiario() {
     return;
   }
 
+  var anomalias = detectarAnomaliasDiario();
+  var codigosAnomalos = {};
+  anomalias.forEach(function (a) { codigosAnomalos[a.codigo] = a; });
+
   lista.innerHTML = diarioDB.map(function(d, i) {
-    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">' +
+    var anomalia = codigosAnomalos[d.codigo];
+    var borderColor = anomalia ? '#f57c00' : 'var(--border)';
+    var bg = anomalia ? 'rgba(245,124,0,0.05)' : 'transparent';
+    return '<div style="padding:9px 6px;background:' + bg + ';border-bottom:1.5px solid ' + borderColor + '">' +
+      '<div style="display:flex;align-items:center;gap:10px">' +
       '<div style="flex:1;min-width:0">' +
-        '<div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + d.nombre + '</div>' +
+        '<div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (anomalia ? '⚠️ ' : '') + d.nombre + '</div>' +
         '<div style="font-size:10px;color:var(--muted);font-family:monospace">' + d.codigo + (d.lote ? ' · Lote: ' + d.lote : '') + '</div>' +
       '</div>' +
       '<div style="text-align:right;flex-shrink:0">' +
@@ -41,6 +88,8 @@ function renderDiario() {
         '<div style="font-size:10px;color:var(--muted)">' + d.unidad + '</div>' +
       '</div>' +
       '<button onclick="eliminarDiario(' + i + ')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px">×</button>' +
+      '</div>' +
+      (anomalia ? '<div style="font-size:10px;color:#f57c00;margin-top:4px;padding-left:2px">Fuera de lo normal · promedio diario: ' + anomalia.promedio + ' un.</div>' : '') +
     '</div>';
   }).join('');
 }
@@ -188,6 +237,19 @@ function agregarDiarioDesdeQR(productId, qty) {
 
 function exportarDiarioDynamics() {
   if (!diarioDB.length) { showAlert('El diario está vacío', 'error'); return; }
+
+  var anomalias = detectarAnomaliasDiario();
+  if (anomalias.length) {
+    var detalle = anomalias.map(function (a) {
+      return '• ' + a.nombre + ': hoy ' + a.qty + ' un. (promedio ' + a.promedio + ' un./día)';
+    }).join('\n');
+    var continuar = confirm(
+      '⚠️ ' + anomalias.length + ' producto' + (anomalias.length > 1 ? 's' : '') + ' con consumo fuera de lo normal hoy:\n\n' +
+      detalle +
+      '\n\nRevisa que no sea un error de digitación antes de cargar a Dynamics.\n\n¿Continuar de todas formas con la exportación?'
+    );
+    if (!continuar) return;
+  }
 
   var ndoc = document.getElementById('diario-ndoc').value || 'C7848-00000419';
   var almacen = document.getElementById('diario-almacen').value || '7848';
@@ -412,4 +474,3 @@ function switchInvTab(tab) {
 }
 
 // ==================== DARK MODE ====================
-

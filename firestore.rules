@@ -31,11 +31,27 @@ service cloud.firestore {
                    && docId in ['main', 'invfis_progreso', 'invfis_historial'];
     }
 
-    // Centros nuevos (Recoleta, Conchalí, Huechuraba, y los que se agreguen).
+    // Respaldos automáticos/manuales de Independencia — subcolección aparte,
+    // solo bajo el documento 'main'. Solo un admin puede crearlos o
+    // borrarlos (limpieza de respaldos viejos); cualquiera con acceso al
+    // centro puede leerlos si alguna vez se necesita recuperar uno a mano.
+    match /dialistock_data/main/respaldos/{backupId} {
+      allow read: if tieneAccesoACentro('independencia');
+      allow write: if esAdminDeCentro('independencia');
+    }
+
+    // Centros nuevos (Recoleta, Quilicura, Huechuraba, y los que se agreguen).
     match /centros/{centroId}/data/{docId} {
       allow read: if tieneAccesoACentro(centroId);
       allow write: if esAdminDeCentro(centroId)
                    && docId in ['main', 'invfis_progreso', 'invfis_historial'];
+    }
+
+    // Respaldos automáticos/manuales de los centros nuevos — mismo criterio
+    // que Independencia arriba.
+    match /centros/{centroId}/data/main/respaldos/{backupId} {
+      allow read: if tieneAccesoACentro(centroId);
+      allow write: if esAdminDeCentro(centroId);
     }
 
     // Cada persona puede leer su propio perfil (para saber sus centros y

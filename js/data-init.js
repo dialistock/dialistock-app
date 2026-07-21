@@ -67,7 +67,7 @@ function setSyncIndicator(state) {
   el.title = s.title;
 }
 
-let _syncTimeout = null;
+llet _syncTimeout = null;
 function save() {
   localStorage.setItem(lsKeyFor('dialistock_db'), JSON.stringify(db));
   localStorage.setItem(lsKeyFor('dialistock_last_local_save'), String(Date.now()));
@@ -79,16 +79,189 @@ function save() {
   // que un cambio de centro durante el debounce no termine escribiendo los
   // datos del centro nuevo en la ruta del centro viejo (o viceversa).
   const pathAlGuardar = fbPathFor('main');
-  const dataAlGuardar = JSON.stringify(db);
+  const dbAlMomentoDeProgramar = JSON.parse(JSON.stringify(db));
   _syncTimeout = setTimeout(() => {
-    fbDb.doc(pathAlGuardar).set({
-      data: dataAlGuardar,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAtLocal: new Date().toISOString()
-    }).then(() => setSyncIndicator('synced'))
-      .catch(err => { console.error('Error guardando en Firestore:', err); setSyncIndicator('error'); });
+    guardarConFusionDeConflictos(pathAlGuardar, dbAlMomentoDeProgramar);
   }, 800);
 }
+
+// ==================== FUSIÓN DE CONFLICTOS (concurrencia) ====================
+// Antes, cada guardado reemplazaba el documento completo en Firestore, sin
+// importar si otro dispositivo/usuario había guardado algo distinto en el
+// medio — el último en escribir borraba en silencio el cambio del otro.
+//
+// Ahora, save() usa una transacción: si nadie más escribió desde la última
+// vez que este dispositivo sincronizó, guarda igual que antes (camino
+// normal). Si alguien más SÍ escribió en el medio, en vez de aplastar su
+// cambio, se fusionan los movimientos de ambos lados (son acumulables por
+// naturaleza — cada uno con ID único, nunca se pierde ninguno) y se ajusta
+// el stock de cada producto sumando el efecto de los movimientos que solo
+// existían del otro lado.
+//
+// Límite conocido: ediciones manuales de stock/precio que NO generan un
+// movimiento asociado (ej. "Editar stock del sistema" o "Editar precio
+// unitario" dentro de Conteo Físico) y que ocurren en dos dispositivos
+// sobre el mismo producto en el mismo instante, no se pueden fusionar de
+// forma automática — gana la última en escribir, igual que antes. Es un
+// caso mucho más raro que el de dos personas registrando movimientos.
+async function guardarConFusionDeConflictos(pathAlGuardar, dbLocal) {
+  try {
+    const resultado = await fbDb.runTransaction(async (tx) => {
+      const snap = await tx.get(fbDb.doc(pathAlGuardar));
+      const ultimoRemotoConocido = localStorage.getItem(lsKeyFor('dialistock_last_remote_seen')) || '';
+      let dbAEscribir = dbLocal;
+      let huboFusion = false;
+
+      if (snap.exists) {
+        const remoto = snap.data();
+        const remotoUpdatedAtLocal = remoto.updatedAtLocal || '';
+        const huboEscrituraAjena = remotoUpdatedAtLocal && remotoUpdatedAtLocal !== ultimoRemotoConocido;
+
+        if (huboEscrituraAjena) {
+          const dbRemoto = JSON.parse(remoto.data);
+          dbAEscribir = fusionarBases(dbLocal, dbRemoto);
+          huboFusion = true;
+        }
+      }
+
+      const nuevoTimestampLocal = new Date().toISOString();
+      tx.set(fbDb.doc(pathAlGuardar), {
+        data: JSON.stringify(dbAEscribir),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAtLocal: nuevoTimestampLocal
+      });
+
+      return { dbAEscribir, nuevoTimestampLocal, huboFusion };
+    });
+
+    // Todo lo que toca el DOM/localStorage pasa AQUÍ AFUERA de la
+    // transacción (adentro no corresponde, porque Firestore puede
+    // reintentar la función de la transacción varias veces si hay
+    // contención, y no queremos efectos secundarios duplicados).
+    db = resultado.dbAEscribir;
+    localStorage.setItem(lsKeyFor('dialistock_db'), JSON.stringify(db));
+    localStorage.setItem(lsKeyFor('dialistock_last_local_save'), String(Date.now()));
+    localStorage.setItem(lsKeyFor('dialistock_last_remote_seen'), resultado.nuevoTimestampLocal);
+    setSyncIndicator('synced');
+
+    if (resultado.huboFusion) {
+      if (typeof updateDashboard === 'function') updateDashboard();
+      if (typeof renderInventory === 'function') renderInventory();
+      if (typeof renderMovements === 'function') renderMovements();
+      if (typeof showAlert === 'function') {
+        showAlert('🔀 Se detectaron cambios de otro dispositivo y se fusionaron automáticamente', 'info');
+      }
+    }
+
+    crearRespaldoSiCorresponde(db);
+  } catch (err) {
+    console.error('Error guardando en Firestore:', err);
+    setSyncIndicator('error');
+  }
+}
+
+// Fusiona la versión local con la remota cuando hubo una escritura ajena en
+// el medio. Devuelve la base combinada, sin perder movimientos de ningún
+// lado y con el stock ajustado según corresponda.
+function fusionarBases(local, remoto) {
+  const movimientosLocalIds = new Set(local.movements.map(function (m) { return m.id; }));
+  const movimientosSoloRemotos = remoto.movements.filter(function (m) { return !movimientosLocalIds.has(m.id); });
+
+  const movimientosFusionados = local.movements.concat(movimientosSoloRemotos)
+    .sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+
+  const productos = local.products.map(function (p) { return Object.assign({}, p); });
+  movimientosSoloRemotos.forEach(function (m) {
+    const p = productos.find(function (x) { return x.id === m.productId; });
+    if (!p) return;
+    if (m.type === 'salida') p.stock = Math.max(0, p.stock - m.qty);
+    else p.stock = p.stock + m.qty; // 'entrada' y 'devolucion' suman stock
+  });
+
+  // Si el otro lado agregó un producto nuevo que localmente no existe
+  // todavía (caso raro), se incorpora tal cual.
+  const idsLocales = new Set(productos.map(function (p) { return p.id; }));
+  remoto.products.forEach(function (p) {
+    if (!idsLocales.has(p.id)) productos.push(Object.assign({}, p));
+  });
+
+  return { products: productos, movements: movimientosFusionados };
+}
+// ==================== /FUSIÓN DE CONFLICTOS ====================
+
+// ==================== RESPALDO DE DATOS ====================
+// Copia de seguridad automática (throttled a como máximo cada 6 horas) en
+// una subcolección separada de Firestore, más un botón manual que descarga
+// un respaldo instantáneo en JSON al computador — sin depender de la nube.
+const RESPALDO_INTERVALO_MS = 6 * 60 * 60 * 1000; // cada 6 horas como máximo
+const RESPALDOS_A_CONSERVAR = 30;
+
+async function crearRespaldoSiCorresponde(dbActual) {
+  if (!fbReady) return;
+  try {
+    const ultimaKey = lsKeyFor('dialistock_ultimo_respaldo');
+    const ultima = parseInt(localStorage.getItem(ultimaKey) || '0');
+    if (Date.now() - ultima < RESPALDO_INTERVALO_MS) return; // todavía no toca
+
+    const ahora = new Date();
+    const backupId = ahora.toISOString().replace(/[:.]/g, '-');
+    const rutaRespaldo = fbPathFor('main') + '/respaldos/' + backupId;
+    await fbDb.doc(rutaRespaldo).set({
+      data: JSON.stringify(dbActual),
+      creadoEn: ahora.toISOString(),
+      totalProductos: dbActual.products.length,
+      totalMovimientos: dbActual.movements.length
+    });
+    localStorage.setItem(ultimaKey, String(Date.now()));
+    renderRespaldoInfo();
+    limpiarRespaldosViejos().catch(function () {});
+  } catch (err) {
+    console.warn('No se pudo crear respaldo automático:', err);
+  }
+}
+
+// Mantiene como máximo los últimos RESPALDOS_A_CONSERVAR respaldos, para no
+// acumular indefinidamente. Se ejecuta después de crear uno nuevo.
+async function limpiarRespaldosViejos() {
+  const coleccion = fbDb.doc(fbPathFor('main')).collection('respaldos');
+  const snap = await coleccion.orderBy('creadoEn', 'desc').get();
+  if (snap.size <= RESPALDOS_A_CONSERVAR) return;
+  const aBorrar = snap.docs.slice(RESPALDOS_A_CONSERVAR);
+  await Promise.all(aBorrar.map(function (d) { return d.ref.delete(); }));
+}
+
+// Botón manual: descarga un respaldo del inventario actual como archivo
+// JSON al computador, al instante — no depende de la nube ni de Firestore,
+// funciona incluso sin conexión.
+function descargarRespaldoManual() {
+  const info = (typeof getCentroInfo === 'function') ? getCentroInfo() : { nombre: 'Independencia', codigo: 'C7848' };
+  const contenido = JSON.stringify({
+    centro: info.nombre,
+    codigo: info.codigo,
+    generadoEn: new Date().toISOString(),
+    db: db
+  }, null, 2);
+  const blob = new Blob([contenido], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'DialiStock_Respaldo_' + info.nombre + '_' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  if (typeof showAlert === 'function') showAlert('📥 Respaldo descargado', 'success');
+}
+
+// Actualiza el texto "último respaldo automático: ..." en el Dashboard, si
+// el elemento existe en la página actual.
+function renderRespaldoInfo() {
+  const el = document.getElementById('respaldo-info-label');
+  if (!el) return;
+  const ultima = parseInt(localStorage.getItem(lsKeyFor('dialistock_ultimo_respaldo')) || '0');
+  if (!ultima) { el.textContent = 'Sin respaldo automático registrado aún'; return; }
+  const fecha = new Date(ultima);
+  el.textContent = 'Último respaldo automático: ' + fecha.toLocaleDateString('es-CL') + ' ' + fecha.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+}
+// ==================== /RESPALDO DE DATOS ====================
 
 async function cargarDesdeFirestore() {
   if (!fbReady) { setSyncIndicator('offline'); return; }
@@ -106,6 +279,12 @@ async function cargarDesdeFirestore() {
       if (typeof updateDashboard === 'function') updateDashboard();
       if (typeof renderHistorialSummary === 'function') renderHistorialSummary();
       showAlert('☁️ Datos actualizados desde la nube', 'info');
+    }
+    // Se registra siempre (haya cambiado o no el contenido) para que save()
+    // sepa cuál es la última versión remota que efectivamente vimos, y así
+    // pueda detectar más adelante si alguien más escribió después de esto.
+    if (remoto.updatedAtLocal) {
+      localStorage.setItem(lsKeyFor('dialistock_last_remote_seen'), remoto.updatedAtLocal);
     }
     setSyncIndicator('synced');
   } catch (err) {
@@ -315,7 +494,8 @@ function init() {
   renderMovements();
   updateClock();
   setInterval(updateClock, 1000);
-  autoCode();
+ autoCode();
+  renderRespaldoInfo();
 }
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }

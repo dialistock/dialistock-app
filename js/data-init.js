@@ -67,7 +67,7 @@ function setSyncIndicator(state) {
   el.title = s.title;
 }
 
-llet _syncTimeout = null;
+let _syncTimeout = null;
 function save() {
   localStorage.setItem(lsKeyFor('dialistock_db'), JSON.stringify(db));
   localStorage.setItem(lsKeyFor('dialistock_last_local_save'), String(Date.now()));

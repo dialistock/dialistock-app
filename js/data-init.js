@@ -487,6 +487,20 @@ function init() {
     }
   });
   if (migracionAplicada) save();
+
+  // Migración: los movimientos de ejemplo cargados al inicio usan el campo
+  // "quantity" en vez de "qty" (el nombre que usa todo el resto del código
+  // para movimientos nuevos) — sin esto, esos registros viejos muestran
+  // "-undefined" en vez de la cantidad real en Últimos Movimientos y en el
+  // historial de Movimientos.
+  let migracionQtyAplicada = false;
+  db.movements.forEach(m => {
+    if (m.qty === undefined && m.quantity !== undefined) {
+      m.qty = m.quantity;
+      migracionQtyAplicada = true;
+    }
+  });
+  if (migracionQtyAplicada) save();
   // Ordenar catálogo por código de menor a mayor (aplica siempre, sea data nueva o ya guardada)
   db.products.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }));
   updateDashboard();
@@ -494,7 +508,7 @@ function init() {
   renderMovements();
   updateClock();
   setInterval(updateClock, 1000);
- autoCode();
+  autoCode();
   renderRespaldoInfo();
 }
 
@@ -589,4 +603,3 @@ function updateClock() {
     now.getHours().toString().padStart(2,'0') + ':' +
     now.getMinutes().toString().padStart(2,'0');
 }
-

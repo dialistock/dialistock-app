@@ -164,13 +164,98 @@
     return Number.isNaN(n) ? valorPorDefecto : n;
   }
 
+  /**
+   * Fusiona la versión local de la base con la remota cuando, al guardar,
+   * se detecta que otro dispositivo/usuario escribió en el medio (ver
+   * data-init.js → guardarConFusionDeConflictos). Los movimientos son
+   * acumulables por naturaleza — cada uno con ID único — así que se unen
+   * sin perder ninguno, y el stock de cada producto se ajusta sumando el
+   * efecto de los movimientos que solo existían del otro lado.
+   *
+   * @param {Object} local  - { products, movements } tal como está en este dispositivo
+   * @param {Object} remoto - { products, movements } tal como está en Firestore
+   * @returns {Object} { products, movements } fusionados
+   */
+  function fusionarBases(local, remoto) {
+    const movimientosLocalIds = new Set(local.movements.map(function (m) { return m.id; }));
+    const movimientosSoloRemotos = remoto.movements.filter(function (m) { return !movimientosLocalIds.has(m.id); });
+
+    const movimientosFusionados = local.movements.concat(movimientosSoloRemotos)
+      .sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+
+    const productos = local.products.map(function (p) { return Object.assign({}, p); });
+    movimientosSoloRemotos.forEach(function (m) {
+      const p = productos.find(function (x) { return x.id === m.productId; });
+      if (!p) return;
+      if (m.type === 'salida') p.stock = Math.max(0, p.stock - m.qty);
+      else p.stock = p.stock + m.qty; // 'entrada' y 'devolucion' suman stock
+    });
+
+    const idsLocales = new Set(productos.map(function (p) { return p.id; }));
+    remoto.products.forEach(function (p) {
+      if (!idsLocales.has(p.id)) productos.push(Object.assign({}, p));
+    });
+
+    return { products: productos, movements: movimientosFusionados };
+  }
+
+  /**
+   * Detecta, dentro de las entradas del diario de hoy, cuáles se salen mucho
+   * del patrón histórico de consumo diario de ese producto — para alertar
+   * antes de exportar a Dynamics (ver diario-charts-tabs.js). No excluye
+   * nada automáticamente, solo marca para que la persona revise.
+   *
+   * @param {Array} entradasDiario  - [{ productId, codigo, nombre, qty }]
+   * @param {Array} movimientos     - historial completo: [{ productId, type, qty, date }]
+   * @param {string} hoyStr         - fecha de hoy en 'es-CL', para excluirla del promedio
+   * @param {number} [diasHistorial] - días atrás a considerar (default 30)
+   * @param {Date} [ahora]          - momento de referencia (default: ahora mismo; parametrizable para tests)
+   * @returns {Array} alertas: [{ nombre, codigo, qty, promedio }]
+   */
+  function detectarAnomalias(entradasDiario, movimientos, hoyStr, diasHistorial, ahora) {
+    const dias = diasHistorial || 30;
+    const ahoraRef = ahora || new Date();
+    const desde = new Date(ahoraRef.getTime() - dias * 24 * 60 * 60 * 1000);
+    const alertas = [];
+
+    entradasDiario.forEach(function (d) {
+      const histPorDia = {};
+      movimientos.forEach(function (m) {
+        if (m.type !== 'salida' || m.productId !== d.productId) return;
+        const fechaMov = new Date(m.date);
+        if (fechaMov < desde) return;
+        const fechaLabel = fechaMov.toLocaleDateString('es-CL');
+        if (fechaLabel === hoyStr) return;
+        histPorDia[fechaLabel] = (histPorDia[fechaLabel] || 0) + m.qty;
+      });
+
+      const valoresDiarios = Object.values(histPorDia);
+      if (!valoresDiarios.length) return;
+
+      const promedio = valoresDiarios.reduce(function (a, b) { return a + b; }, 0) / valoresDiarios.length;
+      const umbral = Math.max(promedio * 2, promedio + 5);
+      if (d.qty > umbral && (d.qty - promedio) >= 5) {
+        alertas.push({
+          nombre: d.nombre,
+          codigo: d.codigo,
+          qty: d.qty,
+          promedio: Math.round(promedio * 10) / 10
+        });
+      }
+    });
+
+    return alertas;
+  }
+
   const api = {
     redondearAFactorEmpaque,
     esConsumoValidoParaProyeccion,
     calcularProyeccionProducto,
     calcularProyeccionExcel,
     calcularNecesidadesKits,
-    numeroODefault
+    numeroODefault,
+    fusionarBases,
+    detectarAnomalias
   };
 
   // Funciona tanto en el navegador (window.CalculoPedido) como en Node (tests)

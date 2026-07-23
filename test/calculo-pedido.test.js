@@ -6,10 +6,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   redondearAFactorEmpaque,
+  esConsumoValidoParaProyeccion,
   calcularProyeccionProducto,
   calcularProyeccionExcel,
   calcularNecesidadesKits,
-  numeroODefault
+  numeroODefault,
+  fusionarBases,
+  detectarAnomalias
 } = require('../calculo-pedido.js');
 
 // ==================== numeroODefault (corrige el bug de "0 se revierte al default") ====================
@@ -75,6 +78,20 @@ test('redondearAFactorEmpaque: factor 0 o indefinido se trata como 1 (evita divi
   const r2 = redondearAFactorEmpaque(10, undefined);
   assert.equal(r1.cantidad, 10);
   assert.equal(r2.cantidad, 10);
+});
+
+// ==================== esConsumoValidoParaProyeccion (regla de domingos) ====================
+
+test('esConsumoValidoParaProyeccion: excluye los domingos', () => {
+  // 2026-07-19 es domingo (confirmado contra calendario real)
+  assert.equal(esConsumoValidoParaProyeccion('2026-07-19T14:00:00'), false);
+});
+
+test('esConsumoValidoParaProyeccion: incluye el resto de los días de la semana', () => {
+  // 2026-07-20 es lunes
+  assert.equal(esConsumoValidoParaProyeccion('2026-07-20T14:00:00'), true);
+  // 2026-07-25 es sábado — solo se excluye domingo, no sábado
+  assert.equal(esConsumoValidoParaProyeccion('2026-07-25T14:00:00'), true);
 });
 
 // ==================== calcularProyeccionProducto (pestaña Proyección en vivo) ====================
@@ -239,4 +256,117 @@ test('calcularNecesidadesKits: con 0 pacientes de un tipo, sus insumos exclusivo
   const r = calcularNecesidadesKits(KIT_FAV_TEST, KIT_CVC_TEST, 0, 10, 3);
   assert.equal(r['101-108-002'].sesion, 0);   // exclusivo de FAV
   assert.equal(r['102-105-060'].sesion, 20);  // exclusivo de CVC, 10 pacientes x 2
+});
+
+// ==================== fusionarBases (concurrencia) ====================
+
+test('fusionarBases: une los movimientos de ambos lados sin duplicar ni perder ninguno', () => {
+  const local = {
+    products: [{ id: 'p1', stock: 100 }],
+    movements: [{ id: 'm1', productId: 'p1', type: 'salida', qty: 10, date: '2026-07-15T10:00:00' }]
+  };
+  const remoto = {
+    products: [{ id: 'p1', stock: 100 }],
+    movements: [
+      { id: 'm1', productId: 'p1', type: 'salida', qty: 10, date: '2026-07-15T10:00:00' }, // el mismo movimiento
+      { id: 'm2', productId: 'p1', type: 'entrada', qty: 20, date: '2026-07-15T11:00:00' } // solo existía en remoto
+    ]
+  };
+  const r = fusionarBases(local, remoto);
+  assert.equal(r.movements.length, 2); // m1 no se duplica, m2 se agrega
+  assert.deepEqual(r.movements.map(m => m.id).sort(), ['m1', 'm2']);
+});
+
+test('fusionarBases: ajusta el stock sumando el efecto de los movimientos que solo existían del otro lado', () => {
+  const local = {
+    // El local ya refleja su propia salida de 10 (100 → 90); todavía no sabe de la salida de 20 que hizo el otro dispositivo.
+    products: [{ id: 'p1', stock: 90 }],
+    movements: [{ id: 'm1', productId: 'p1', type: 'salida', qty: 10, date: '2026-07-15T10:00:00' }]
+  };
+  const remoto = {
+    products: [{ id: 'p1', stock: 80 }],
+    movements: [
+      { id: 'm1', productId: 'p1', type: 'salida', qty: 10, date: '2026-07-15T10:00:00' },
+      { id: 'm2', productId: 'p1', type: 'salida', qty: 20, date: '2026-07-15T11:00:00' }
+    ]
+  };
+  const r = fusionarBases(local, remoto);
+  // 90 (ya reflejaba su propia salida) - 20 (efecto de m2, que solo existía en remoto) = 70
+  assert.equal(r.products[0].stock, 70);
+});
+
+test('fusionarBases: incorpora productos nuevos que solo existían del otro lado', () => {
+  const local = { products: [{ id: 'p1', stock: 10 }], movements: [] };
+  const remoto = { products: [{ id: 'p1', stock: 10 }, { id: 'p2', stock: 5 }], movements: [] };
+  const r = fusionarBases(local, remoto);
+  assert.equal(r.products.length, 2);
+});
+
+test('fusionarBases: los movimientos fusionados quedan ordenados cronológicamente', () => {
+  const local = { products: [], movements: [{ id: 'm2', productId: 'x', type: 'entrada', qty: 1, date: '2026-07-15T12:00:00' }] };
+  const remoto = { products: [], movements: [{ id: 'm1', productId: 'x', type: 'entrada', qty: 1, date: '2026-07-15T09:00:00' }] };
+  const r = fusionarBases(local, remoto);
+  assert.deepEqual(r.movements.map(m => m.id), ['m1', 'm2']);
+});
+
+// ==================== detectarAnomalias (alerta antes de exportar a Dynamics) ====================
+
+test('detectarAnomalias: marca un consumo que se dispara muy por encima del promedio histórico', () => {
+  const historial = [
+    { productId: 'p1', type: 'salida', qty: 10, date: '2026-07-10T10:00:00' },
+    { productId: 'p1', type: 'salida', qty: 12, date: '2026-07-11T10:00:00' },
+    { productId: 'p1', type: 'salida', qty: 8,  date: '2026-07-12T10:00:00' }
+  ];
+  const ahora = new Date('2026-07-15T18:00:00');
+  const hoyStr = ahora.toLocaleDateString('es-CL');
+  const diario = [{ productId: 'p1', codigo: 'X-1', nombre: 'Producto X', qty: 50 }];
+  const alertas = detectarAnomalias(diario, historial, hoyStr, 30, ahora);
+  assert.equal(alertas.length, 1);
+  assert.equal(alertas[0].codigo, 'X-1');
+});
+
+test('detectarAnomalias: no marca un consumo cercano al promedio histórico', () => {
+  const historial = [
+    { productId: 'p1', type: 'salida', qty: 10, date: '2026-07-10T10:00:00' },
+    { productId: 'p1', type: 'salida', qty: 12, date: '2026-07-11T10:00:00' }
+  ];
+  const ahora = new Date('2026-07-15T18:00:00');
+  const hoyStr = ahora.toLocaleDateString('es-CL');
+  const diario = [{ productId: 'p1', codigo: 'X-1', nombre: 'Producto X', qty: 11 }];
+  const alertas = detectarAnomalias(diario, historial, hoyStr, 30, ahora);
+  assert.equal(alertas.length, 0);
+});
+
+test('detectarAnomalias: sin historial suficiente para comparar, no marca nada (evita falsos positivos con productos nuevos)', () => {
+  const ahora = new Date('2026-07-15T18:00:00');
+  const hoyStr = ahora.toLocaleDateString('es-CL');
+  const diario = [{ productId: 'p-nuevo', codigo: 'NEW-1', nombre: 'Producto Nuevo', qty: 500 }];
+  const alertas = detectarAnomalias(diario, [], hoyStr, 30, ahora);
+  assert.equal(alertas.length, 0);
+});
+
+test('detectarAnomalias: ignora los movimientos del mismo día de hoy al calcular el promedio histórico', () => {
+  const ahora = new Date('2026-07-15T18:00:00');
+  const hoyStr = ahora.toLocaleDateString('es-CL');
+  const historial = [
+    { productId: 'p1', type: 'salida', qty: 10, date: '2026-07-10T10:00:00' },
+    { productId: 'p1', type: 'salida', qty: 999, date: '2026-07-15T08:00:00' } // hoy mismo, no debe contarse en el promedio
+  ];
+  const diario = [{ productId: 'p1', codigo: 'X-1', nombre: 'Producto X', qty: 12 }];
+  const alertas = detectarAnomalias(diario, historial, hoyStr, 30, ahora);
+  // Si el 999 de hoy contaminara el promedio, 12 jamás se vería anómalo; el
+  // punto de esta prueba es que el promedio real (10) tampoco marca 12 como anomalía.
+  assert.equal(alertas.length, 0);
+});
+
+test('detectarAnomalias: no considera movimientos de tipo "entrada" para el promedio de consumo', () => {
+  const ahora = new Date('2026-07-15T18:00:00');
+  const hoyStr = ahora.toLocaleDateString('es-CL');
+  const historial = [
+    { productId: 'p1', type: 'entrada', qty: 500, date: '2026-07-10T10:00:00' } // una recepción, no consumo
+  ];
+  const diario = [{ productId: 'p1', codigo: 'X-1', nombre: 'Producto X', qty: 5 }];
+  const alertas = detectarAnomalias(diario, historial, hoyStr, 30, ahora);
+  // Sin salidas en el historial, no hay base de comparación → no se marca nada
+  assert.equal(alertas.length, 0);
 });

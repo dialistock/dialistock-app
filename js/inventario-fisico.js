@@ -730,7 +730,10 @@ function renderComparacionAutoResultado() {
       <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
         <div style="font-size:11px;flex:1;min-width:0">${f.emoji} ${f.nombre}</div>
         <div style="font-size:11px;color:var(--muted);white-space:nowrap">${f.realA ?? '—'} → ${f.realB ?? '—'}</div>
-        <div style="font-family:'Inter',sans-serif;font-size:12px;font-weight:800;color:${f.delta < 0 ? 'var(--danger)' : 'var(--accent)'};margin-left:8px">${f.delta > 0 ? '+' : ''}${f.delta}</div>
+        <div style="text-align:right;margin-left:8px;flex-shrink:0">
+          <div style="font-family:'Inter',sans-serif;font-size:12px;font-weight:800;color:${f.delta < 0 ? 'var(--danger)' : 'var(--accent)'}">${f.delta > 0 ? '+' : ''}${f.delta}</div>
+          <div style="font-family:'Inter',sans-serif;font-size:10px;font-weight:700;color:${f.valor < 0 ? 'var(--danger)' : 'var(--accent)'}">${fmt(f.valor)}</div>
+        </div>
       </div>`).join('') +
     `<div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn" style="flex:1;background:var(--accent2);color:#fff;border:none;border-radius:10px;padding:10px;font-weight:700;font-size:12px;cursor:pointer;font-family:'Inter',sans-serif" onclick="exportarComparacionExcel()">⬇ Excel</button>

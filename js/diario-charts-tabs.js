@@ -4,42 +4,13 @@ let diarioDB = JSON.parse(localStorage.getItem('ds_diario') || '[]');
 function saveDiario() { localStorage.setItem('ds_diario', JSON.stringify(diarioDB)); }
 
 // Compara el consumo de hoy de cada producto en el diario contra su
-// promedio histórico diario (últimos 30 días, excluyendo hoy) para detectar
-// posibles errores de digitación antes de cargar a Dynamics. No excluye
-// nada automáticamente — solo marca para que la persona revise.
+// promedio histórico diario para detectar posibles errores de digitación
+// antes de cargar a Dynamics. La lógica pura vive en calculo-pedido.js →
+// detectarAnomalias() (así se puede testear con node --test — ver
+// test/calculo-pedido.test.js); aquí solo se conectan los datos reales.
 function detectarAnomaliasDiario() {
   const hoyStr = new Date().toLocaleDateString('es-CL');
-  const desde = new Date();
-  desde.setDate(desde.getDate() - 30);
-  const alertas = [];
-
-  diarioDB.forEach(function (d) {
-    const histPorDia = {};
-    db.movements.forEach(function (m) {
-      if (m.type !== 'salida' || m.productId !== d.productId) return;
-      const fechaMov = new Date(m.date);
-      if (fechaMov < desde) return;
-      const fechaLabel = fechaMov.toLocaleDateString('es-CL');
-      if (fechaLabel === hoyStr) return; // no comparar el día de hoy contra sí mismo
-      histPorDia[fechaLabel] = (histPorDia[fechaLabel] || 0) + m.qty;
-    });
-
-    const valoresDiarios = Object.values(histPorDia);
-    if (!valoresDiarios.length) return; // sin historial suficiente para comparar, no se marca
-
-    const promedio = valoresDiarios.reduce(function (a, b) { return a + b; }, 0) / valoresDiarios.length;
-    const umbral = Math.max(promedio * 2, promedio + 5);
-    if (d.qty > umbral && (d.qty - promedio) >= 5) {
-      alertas.push({
-        nombre: d.nombre,
-        codigo: d.codigo,
-        qty: d.qty,
-        promedio: Math.round(promedio * 10) / 10
-      });
-    }
-  });
-
-  return alertas;
+  return CalculoPedido.detectarAnomalias(diarioDB, db.movements, hoyStr);
 }
 
 function renderDiario() {

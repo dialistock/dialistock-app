@@ -119,7 +119,7 @@ async function guardarConFusionDeConflictos(pathAlGuardar, dbLocal) {
 
         if (huboEscrituraAjena) {
           const dbRemoto = JSON.parse(remoto.data);
-          dbAEscribir = fusionarBases(dbLocal, dbRemoto);
+          dbAEscribir = CalculoPedido.fusionarBases(dbLocal, dbRemoto);
           huboFusion = true;
         }
       }
@@ -163,30 +163,9 @@ async function guardarConFusionDeConflictos(pathAlGuardar, dbLocal) {
 // Fusiona la versión local con la remota cuando hubo una escritura ajena en
 // el medio. Devuelve la base combinada, sin perder movimientos de ningún
 // lado y con el stock ajustado según corresponda.
-function fusionarBases(local, remoto) {
-  const movimientosLocalIds = new Set(local.movements.map(function (m) { return m.id; }));
-  const movimientosSoloRemotos = remoto.movements.filter(function (m) { return !movimientosLocalIds.has(m.id); });
-
-  const movimientosFusionados = local.movements.concat(movimientosSoloRemotos)
-    .sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
-
-  const productos = local.products.map(function (p) { return Object.assign({}, p); });
-  movimientosSoloRemotos.forEach(function (m) {
-    const p = productos.find(function (x) { return x.id === m.productId; });
-    if (!p) return;
-    if (m.type === 'salida') p.stock = Math.max(0, p.stock - m.qty);
-    else p.stock = p.stock + m.qty; // 'entrada' y 'devolucion' suman stock
-  });
-
-  // Si el otro lado agregó un producto nuevo que localmente no existe
-  // todavía (caso raro), se incorpora tal cual.
-  const idsLocales = new Set(productos.map(function (p) { return p.id; }));
-  remoto.products.forEach(function (p) {
-    if (!idsLocales.has(p.id)) productos.push(Object.assign({}, p));
-  });
-
-  return { products: productos, movements: movimientosFusionados };
-}
+// La lógica de fusión vive en calculo-pedido.js → fusionarBases() (motor de
+// cálculo puro, sin DOM) para que se pueda testear con node --test — ver
+// test/calculo-pedido.test.js. Aquí solo se usa: CalculoPedido.fusionarBases(...).
 // ==================== /FUSIÓN DE CONFLICTOS ====================
 
 // ==================== RESPALDO DE DATOS ====================

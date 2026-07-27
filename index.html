@@ -280,6 +280,26 @@
     <div id="chart-weekly" style="margin-top:8px"></div>
   </div>
 
+  <!-- Consumo diario por producto (comparación) -->
+  <div class="card">
+    <div class="card-title">📊 Consumo diario por producto</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Compara la evolución diaria de hasta 4 productos (ej. concentrados ACF-213 vs ACF-215).</p>
+    <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
+      <div class="search-box" style="margin-bottom:0;flex:1;min-width:160px">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="consumo-producto-buscador" placeholder="Buscar producto para agregar..." oninput="buscarProductoParaConsumo(this.value)">
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <label style="font-size:11px;color:var(--muted);white-space:nowrap">Días:</label>
+        <input type="number" id="consumo-producto-dias" value="30" min="7" max="90" style="width:60px;padding:6px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:var(--surface);color:var(--text)" oninput="renderConsumoPorProducto()">
+      </div>
+    </div>
+    <div id="consumo-producto-buscador-resultados" style="display:none;margin-bottom:10px;max-height:160px;overflow-y:auto;border:1.5px solid var(--border);border-radius:10px;background:var(--surface)"></div>
+    <div id="consumo-producto-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
+    <div id="consumo-producto-chart"><div class="empty-state" data-icon="📊"><p>Busca y agrega productos para comparar su consumo diario</p></div></div>
+    <div id="consumo-producto-tabla" style="margin-top:10px;overflow-x:auto"></div>
+  </div>
+
 </div>
 
 <!-- PAGE: SCANNER -->

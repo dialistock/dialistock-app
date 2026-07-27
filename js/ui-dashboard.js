@@ -111,6 +111,9 @@ function updateDashboard() {
 
   // KPIs REALES
   renderKpisReales();
+
+  // Consumo diario por producto (comparación)
+  if (typeof renderConsumoPorProducto === 'function') renderConsumoPorProducto();
 }
 
 function renderKpisReales() {
@@ -224,4 +227,3 @@ function formatDate(d) {
   const dt = new Date(d);
   return dt.toLocaleDateString('es-CL') + ' ' + dt.toLocaleTimeString('es-CL', {hour:'2-digit', minute:'2-digit'});
 }
-

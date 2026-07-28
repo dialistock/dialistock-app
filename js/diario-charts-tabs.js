@@ -412,7 +412,140 @@ function renderChartWeekly() {
     </div>`;
 }
 
+// ==================== CONSUMO DIARIO POR PRODUCTO ====================
+// Tarjeta en el Dashboard: buscar y agregar hasta 4 productos para comparar
+// su evolución de consumo día a día, calculado en vivo desde db.movements
+// (sin depender de subir ningún Excel de Dynamics).
+let consumoProductosSeleccionados = [];
+const CONSUMO_PRODUCTO_COLORES = ['#0099cc', '#f57c00', '#8e44ad', '#c8102e'];
+
+function buscarProductoParaConsumo(query) {
+  const cont = document.getElementById('consumo-producto-buscador-resultados');
+  if (!cont) return;
+  if (!query || query.trim().length < 2) { cont.style.display = 'none'; cont.innerHTML = ''; return; }
+  const q = query.toLowerCase();
+  const encontrados = db.products.filter(function (p) {
+    return (p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)) &&
+      consumoProductosSeleccionados.indexOf(p.id) === -1;
+  }).slice(0, 8);
+  if (!encontrados.length) {
+    cont.style.display = 'block';
+    cont.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted)">Sin resultados</div>';
+    return;
+  }
+  cont.style.display = 'block';
+  cont.innerHTML = encontrados.map(function (p) {
+    return '<div onclick="agregarProductoAConsumo(\'' + p.id + '\')" style="padding:8px 10px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border)">' +
+      p.emoji + ' <b>' + p.name + '</b> <span style="color:var(--muted);font-family:monospace;font-size:10px">' + p.code + '</span></div>';
+  }).join('');
+}
+
+function agregarProductoAConsumo(id) {
+  if (consumoProductosSeleccionados.length >= 4) {
+    if (typeof showAlert === 'function') showAlert('Máximo 4 productos para comparar a la vez', 'info');
+    return;
+  }
+  if (consumoProductosSeleccionados.indexOf(id) === -1) consumoProductosSeleccionados.push(id);
+  const buscador = document.getElementById('consumo-producto-buscador');
+  if (buscador) buscador.value = '';
+  const resultados = document.getElementById('consumo-producto-buscador-resultados');
+  if (resultados) { resultados.style.display = 'none'; resultados.innerHTML = ''; }
+  renderConsumoPorProducto();
+}
+
+function quitarProductoDeConsumo(id) {
+  consumoProductosSeleccionados = consumoProductosSeleccionados.filter(function (x) { return x !== id; });
+  renderConsumoPorProducto();
+}
+
+function renderConsumoPorProducto() {
+  const chipsEl = document.getElementById('consumo-producto-chips');
+  const chartEl = document.getElementById('consumo-producto-chart');
+  const tablaEl = document.getElementById('consumo-producto-tabla');
+  if (!chipsEl || !chartEl) return;
+
+  if (!consumoProductosSeleccionados.length) {
+    chipsEl.innerHTML = '';
+    chartEl.innerHTML = '<div class="empty-state" data-icon="📊"><p>Busca y agrega productos para comparar su consumo diario</p></div>';
+    if (tablaEl) tablaEl.innerHTML = '';
+    return;
+  }
+
+  const diasInput = document.getElementById('consumo-producto-dias');
+  const dias = parseInt(diasInput ? diasInput.value : '30') || 30;
+  const productos = consumoProductosSeleccionados
+    .map(function (id) { return db.products.find(function (p) { return p.id === id; }); })
+    .filter(Boolean);
+
+  chipsEl.innerHTML = productos.map(function (p, i) {
+    const color = CONSUMO_PRODUCTO_COLORES[i];
+    return '<div style="display:flex;align-items:center;gap:6px;background:' + color + '18;border:1.5px solid ' + color + ';border-radius:20px;padding:5px 10px">' +
+      '<span style="width:8px;height:8px;border-radius:50%;background:' + color + '"></span>' +
+      '<span style="font-size:11px;font-weight:700">' + p.name + '</span>' +
+      '<span onclick="quitarProductoDeConsumo(\'' + p.id + '\')" style="cursor:pointer;color:var(--muted);font-size:14px;line-height:1">×</span></div>';
+  }).join('');
+
+  const diasArr = [];
+  for (let i = dias - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    diasArr.push({ date: d.toLocaleDateString('es-CL'), label: d.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' }) });
+  }
+
+  const datos = productos.map(function (p) {
+    const porDia = {};
+    diasArr.forEach(function (d) { porDia[d.date] = 0; });
+    db.movements.forEach(function (m) {
+      if (m.type !== 'salida' || m.productId !== p.id) return;
+      const fechaLabel = new Date(m.date).toLocaleDateString('es-CL');
+      if (fechaLabel in porDia) porDia[fechaLabel] += m.qty;
+    });
+    return { producto: p, valores: diasArr.map(function (d) { return porDia[d.date]; }) };
+  });
+
+  const maxVal = Math.max.apply(null, datos.flatMap(function (d) { return d.valores; }).concat([1]));
+  const barWidth = Math.max(3, Math.floor(14 / datos.length));
+  const colWidth = dias > 30 ? 10 : 18;
+  const gap = dias > 30 ? 2 : 4;
+
+  chartEl.innerHTML =
+    '<div style="display:flex;align-items:flex-end;gap:' + gap + 'px;height:130px;overflow-x:auto;padding-bottom:4px">' +
+    diasArr.map(function (d, di) {
+      const bars = datos.map(function (serie, si) {
+        const v = serie.valores[di];
+        const h = v > 0 ? Math.max(2, Math.round((v / maxVal) * 96)) : 0;
+        return '<div title="' + serie.producto.name + ': ' + v + '" style="width:' + barWidth + 'px;height:' + h + 'px;background:' + CONSUMO_PRODUCTO_COLORES[si] + ';border-radius:2px 2px 0 0"></div>';
+      }).join('');
+      return '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;min-width:' + colWidth + 'px">' +
+        '<div style="display:flex;align-items:flex-end;gap:1px;height:100px">' + bars + '</div>' +
+        '<div style="font-size:8px;color:var(--muted);white-space:nowrap">' + d.label + '</div></div>';
+    }).join('') +
+    '</div>';
+
+  if (tablaEl) {
+    tablaEl.innerHTML =
+      '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
+      '<thead><tr style="background:rgba(0,153,204,0.07)">' +
+      '<th style="padding:6px 8px;text-align:left;color:var(--muted);font-size:9px;text-transform:uppercase">Producto</th>' +
+      '<th style="padding:6px 8px;text-align:right;color:var(--muted);font-size:9px;text-transform:uppercase">Total período</th>' +
+      '<th style="padding:6px 8px;text-align:right;color:var(--muted);font-size:9px;text-transform:uppercase">Promedio/día</th>' +
+      '</tr></thead><tbody>' +
+      datos.map(function (serie, i) {
+        const total = serie.valores.reduce(function (a, b) { return a + b; }, 0);
+        const prom = Math.round((total / dias) * 10) / 10;
+        return '<tr style="border-top:1px solid var(--border)">' +
+          '<td style="padding:6px 8px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + CONSUMO_PRODUCTO_COLORES[i] + ';margin-right:6px"></span>' + serie.producto.name + '</td>' +
+          '<td style="padding:6px 8px;text-align:right;font-family:\'Inter\',sans-serif;font-weight:700">' + total + '</td>' +
+          '<td style="padding:6px 8px;text-align:right;font-family:\'Inter\',sans-serif;color:var(--muted)">' + prom + '</td></tr>';
+      }).join('') +
+      '</tbody></table>';
+  }
+}
+// ==================== /CONSUMO DIARIO POR PRODUCTO ====================
+
 // ==================== DIARIO TABS ====================
+
+
 function switchDiarioTab(tab) {
   ['scanner','diario','config'].forEach(function(t) {
     var el = document.getElementById('diario-tab-' + t);

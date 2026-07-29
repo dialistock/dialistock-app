@@ -241,6 +241,17 @@
     </div>
   </div>
 
+  <!-- Alerta Carro de Paro (solo visible si hay algo que revisar) -->
+  <div id="carroparo-dashboard-card" style="display:none;margin-bottom:14px">
+    <div style="background:var(--surface);border:1.5px solid var(--danger);border-radius:16px;padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:700;color:var(--danger)">🚨 Carro de Paro — revisar</div>
+        <button onclick="showPage('inventory',document.querySelector('[onclick*=inventory]'));switchInvTab('caroparo')" style="font-size:11px;color:var(--accent2);background:none;border:none;cursor:pointer;font-weight:600">Ver →</button>
+      </div>
+      <div id="carroparo-dashboard-list"></div>
+    </div>
+  </div>
+
   <!-- ALERTAS DE VENCIMIENTO -->
   <div id="venc-dashboard-card" style="display:none;margin-bottom:14px">
     <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:16px;padding:14px">
@@ -308,7 +319,7 @@
 <div id="page-inventory" class="page">
 
   <!-- Sub-pestañas internas -->
-  <div style="display:flex;gap:6px;margin-bottom:14px">
+  <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
     <button id="inv-tab-btn-lista" onclick="switchInvTab('lista')"
       style="flex:1;padding:8px 12px;border-radius:20px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif">
       📦 Lista
@@ -316,6 +327,10 @@
     <button id="inv-tab-btn-fisico" onclick="switchInvTab('fisico')"
       style="flex:1;padding:8px 12px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif">
       📊 Conteo Físico
+    </button>
+    <button id="inv-tab-btn-caroparo" onclick="switchInvTab('caroparo')"
+      style="flex:1;padding:8px 12px;border-radius:20px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif">
+      🚨 Carro de Paro
     </button>
   </div>
 
@@ -401,6 +416,49 @@
         </div>
       </div>
       <div id="invfis-resumen"></div>
+    </div>
+  </div>
+
+  <!-- Tab: Carro de Paro -->
+  <div id="inv-tab-caroparo" style="display:none">
+    <div class="card">
+      <div class="card-title">➕ Agregar producto al Carro de Paro</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Registra los medicamentos e insumos que siempre deben estar listos para una emergencia, con la cantidad que debería haber (norma) y la que hay realmente.</p>
+      <div class="form-group">
+        <label>Producto</label>
+        <select id="caroparo-producto" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;color:var(--text);background:var(--surface)">
+          <option value="">— Seleccionar producto —</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group">
+          <label>Norma (cantidad esperada)</label>
+          <input type="number" id="caroparo-norma" placeholder="0" min="0">
+        </div>
+        <div class="form-group">
+          <label>Existencia actual</label>
+          <input type="number" id="caroparo-existencia" placeholder="0" min="0">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group">
+          <label>Nº Lote</label>
+          <input type="text" id="caroparo-lote" placeholder="Opcional">
+        </div>
+        <div class="form-group">
+          <label>Fecha vencimiento</label>
+          <input type="date" id="caroparo-vencimiento">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="agregarItemCarroParo()">Agregar al Carro de Paro</button>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="card-title" style="margin-bottom:0">🚨 Carro de Paro</div>
+        <button onclick="exportarCarroParoExcel()" style="background:var(--accent2);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif">⬇ Exportar</button>
+      </div>
+      <div id="caroparo-lista"><div class="empty-state" data-icon="🚨"><p>Sin productos registrados en el Carro de Paro</p></div></div>
     </div>
   </div>
 
@@ -1924,6 +1982,7 @@
 <script src="js/compras-proveedores.js"></script>
 <script src="js/excel-dynamics-planillas.js"></script>
 <script src="js/diario-charts-tabs.js"></script>
+<script src="js/carro-paro.js"></script>
 <script src="js/demo-gdrive-pwa.js"></script>
 
 <!-- QR INSTALL MODAL -->

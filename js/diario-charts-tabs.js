@@ -544,8 +544,6 @@ function renderConsumoPorProducto() {
 // ==================== /CONSUMO DIARIO POR PRODUCTO ====================
 
 // ==================== DIARIO TABS ====================
-
-
 function switchDiarioTab(tab) {
   ['scanner','diario','config'].forEach(function(t) {
     var el = document.getElementById('diario-tab-' + t);
@@ -565,7 +563,7 @@ var _origOnQRCode = null;
 
 // ==================== INVENTORY TABS ====================
 function switchInvTab(tab) {
-  ['lista','fisico'].forEach(function(t) {
+  ['lista','fisico','caroparo'].forEach(function(t) {
     var el = document.getElementById('inv-tab-' + t);
     var btn = document.getElementById('inv-tab-btn-' + t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
@@ -575,6 +573,10 @@ function switchInvTab(tab) {
       btn.style.borderColor = t === tab ? 'var(--accent)' : 'var(--border)';
     }
   });
+  if (tab === 'caroparo' && typeof cargarCarroParoDesdeFirestore === 'function') {
+    cargarCarroParoDesdeFirestore().then(function () { renderCarroParo(); });
+    renderCarroParo();
+  }
 }
 
 // ==================== DARK MODE ====================

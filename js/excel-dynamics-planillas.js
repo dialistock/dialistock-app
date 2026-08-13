@@ -446,7 +446,7 @@ function aplicarConsumoDiario(tipo) {
   save();
   document.getElementById('consumo-modal').remove();
   updateDashboard();
-  if (typeof renderInventario === 'function') renderInventario();
+if (typeof renderInventory === 'function') renderInventory();
   showAlert(`✅ Consumo ${tipo.toUpperCase()} aplicado · ${aplicados} insumos descontados`, 'success');
 }
 

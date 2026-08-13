@@ -143,10 +143,10 @@ function importarDesdeDynamics(input) {
         const p = db.products.find(x => x.code === code);
         if (p) { p.stock = Math.round(qty); actualizados++; }
         else noEncontrados++;
-      });
+    });
 
       save();
-      renderInventario();
+      renderInventory();
       updateDashboard();
 
       const fecha = new Date().toLocaleString('es-CL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });

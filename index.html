@@ -100,7 +100,7 @@
     </span>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
-    <span id="sync-indicator" style="font-size:14px;cursor:default" title="Sincronización">📴</span>
+    <span id="sync-indicator" style="font-size:14px;cursor:pointer" title="Tocar para actualizar datos" onclick="if(typeof cargarDesdeFirestore==='function')cargarDesdeFirestore()">📴</span>
     <span class="header-badge" id="current-time">--:--</span>
     <span id="user-name-badge" style="font-size:11px;color:rgba(255,255,255,0.85);font-weight:600;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
     <span id="user-role-badge" style="font-size:10px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:3px 8px;color:#fff;white-space:nowrap"></span>

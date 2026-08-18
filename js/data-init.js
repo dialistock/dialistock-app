@@ -583,4 +583,9 @@ function updateClock() {
   document.getElementById('current-time').textContent =
     now.getHours().toString().padStart(2,'0') + ':' +
     now.getMinutes().toString().padStart(2,'0');
+  document.addEventListener('visibilitychange', function () {
+     if (document.visibilityState === 'visible' && typeof cargarDesdeFirestore === 'function') {
+       cargarDesdeFirestore();
+     }
+   });
 }

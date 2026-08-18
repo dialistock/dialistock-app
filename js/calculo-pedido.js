@@ -191,10 +191,10 @@
       else p.stock = p.stock + m.qty; // 'entrada' y 'devolucion' suman stock
     });
 
-    const idsLocales = new Set(productos.map(function (p) { return p.id; }));
-    remoto.products.forEach(function (p) {
-      if (!idsLocales.has(p.id)) productos.push(Object.assign({}, p));
-    });
+    const codigosLocales = new Set(productos.map(function (p) { return p.code; }));
+   remoto.products.forEach(function (p) {
+     if (!codigosLocales.has(p.code)) productos.push(Object.assign({}, p));
+   });
 
     return { products: productos, movements: movimientosFusionados };
   }

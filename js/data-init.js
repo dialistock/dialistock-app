@@ -255,7 +255,9 @@ async function cargarDesdeFirestore() {
       db = JSON.parse(remoto.data);
       localStorage.setItem(lsKeyFor('dialistock_db'), JSON.stringify(db));
       localStorage.setItem(lsKeyFor('dialistock_last_local_save'), String(remotoLocal));
-      if (typeof updateDashboard === 'function') updateDashboard();
+     if (typeof updateDashboard === 'function') updateDashboard();
+      if (typeof renderInventory === 'function') renderInventory();
+      if (typeof renderMovements === 'function') renderMovements();
       if (typeof renderHistorialSummary === 'function') renderHistorialSummary();
       showAlert('☁️ Datos actualizados desde la nube', 'info');
     }

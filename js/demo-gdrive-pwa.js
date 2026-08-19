@@ -61,7 +61,7 @@ function importarDesdeDynamicsFisico(input) {
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
-             const data = new Uint8Array(e.target.result);
+      const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, { type: 'array', cellDates: true });
 
       let rows = [], codeIdx = -1, qtyIdx = -1;
@@ -147,7 +147,7 @@ function importarDesdeDynamics(input) {
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
-           const data = new Uint8Array(e.target.result);
+      const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, { type: 'array', cellDates: true });
 
       // Buscar la hoja correcta revisando los encabezados de cada una, en vez
@@ -200,60 +200,9 @@ function importarDesdeDynamics(input) {
             }
           }
         });
-      }      const data = new Uint8Array(e.target.result);
-      const wb = XLSX.read(data, { type: 'array', cellDates: true });
-
-      // Buscar la hoja correcta revisando los encabezados de cada una, en vez
-      // de asumir que los datos están en la primera hoja del archivo (el
-      // orden de hojas varía entre exportaciones de Dynamics).
-      let rows = [], codeIdx = -1, qtyIdx = -1;
-      for (const sheetName of wb.SheetNames) {
-        const candidateRows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: null });
-        const candidateHeaders = (candidateRows[0] || []).map(h => (h || '').toString().trim().toLowerCase());
-        const cIdx = candidateHeaders.findIndex(h => h.includes('producto'));
-        const qIdx = candidateHeaders.findIndex(h => h.includes('cantidad'));
-        if (cIdx !== -1 && qIdx !== -1) {
-          rows = candidateRows; codeIdx = cIdx; qtyIdx = qIdx;
-          break;
-        }
       }
 
-      // Agrupar por código sumando cantidades (hay múltiples lotes por producto)
-      if (!Array.isArray(db.lotes)) db.lotes = [];
-      const stockPorCodigo = {};
-      let filasDatos = 0;
-      if (codeIdx !== -1 && qtyIdx !== -1) {
-        const headersFinal = (rows[0] || []).map(h => (h || '').toString().trim().toLowerCase());
-        const loteIdx = headersFinal.findIndex(h => h.includes('lote'));
-        const vencIdx = headersFinal.findIndex(h => h.includes('caduc') || h.includes('vencim'));
-        rows.forEach((row, i) => {
-          if (i === 0) return; // saltar encabezado
-          const code = row[codeIdx] ? String(row[codeIdx]).trim() : null;
-          const qty = parseFloat(row[qtyIdx]) || 0;
-          if (!code || qty === 0) return;
-          stockPorCodigo[code] = (stockPorCodigo[code] || 0) + qty;
-          filasDatos++;
-
-          // Guardar también el detalle por lote (número + vencimiento), no
-          // solo el total por código, para poder mostrarlo en Conteo Físico.
-          if (loteIdx !== -1) {
-            const lote = row[loteIdx] ? String(row[loteIdx]).trim() : '';
-            if (lote) {
-              let vencimiento = '';
-              const vencRaw = vencIdx !== -1 ? row[vencIdx] : null;
-              if (vencRaw instanceof Date) vencimiento = vencRaw.toISOString().slice(0, 10);
-              else if (vencRaw != null && String(vencRaw).trim()) vencimiento = String(vencRaw).trim();
-              const existente = db.lotes.find(l => l.code === code && l.lote === lote);
-              if (existente) {
-                existente.qty = Math.round(qty);
-                if (vencimiento) existente.vencimiento = vencimiento;
-              } else {
-                db.lotes.push({ id: genId(), code, lote, qty: Math.round(qty), vencimiento, registrado: new Date().toISOString() });
-              }
-            }
-          }
-        });
-      }      if (Object.keys(stockPorCodigo).length === 0) {
+      if (Object.keys(stockPorCodigo).length === 0) {
         statusEl.textContent = '⚠️ No se encontraron datos válidos';
         showAlert('No se encontraron datos en el Excel — verifica el formato', 'error');
         return;

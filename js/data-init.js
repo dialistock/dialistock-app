@@ -482,6 +482,22 @@ function init() {
     }
   });
   if (migracionQtyAplicada) save();
+  
+  // Migración: los lotes vivían solo en localStorage (ds_lotes), sin
+  // sincronizar a la nube ni separarse por centro. Se pasan una sola vez al
+  // objeto db (que sí sincroniza), y de ahí en adelante quedan por centro.
+  if (!Array.isArray(db.lotes)) {
+    db.lotes = [];
+    try {
+      const lotesViejos = JSON.parse(localStorage.getItem('ds_lotes') || '[]');
+      if (lotesViejos.length) {
+        db.lotes = lotesViejos;
+        localStorage.removeItem('ds_lotes');
+      }
+    } catch (e) { /* sin datos viejos que migrar */ }
+    save();
+  }
+  if (typeof lotesDB !== 'undefined') lotesDB = db.lotes;
   // Ordenar catálogo por código de menor a mayor (aplica siempre, sea data nueva o ya guardada)
   db.products.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }));
   updateDashboard();

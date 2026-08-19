@@ -1,9 +1,11 @@
 // ==================== LOTES / VENCIMIENTOS ====================
-let lotesDB = JSON.parse(localStorage.getItem('ds_lotes') || '[]');
+// lotesDB se inicializa vacío aquí; data-init.js lo reemplaza por la
+// referencia real a db.lotes (sincronizado a la nube) apenas carga los
+// datos del centro — ver la migración en data-init.js.
+let lotesDB = [];
 let filtroVenc = 'todos';
 
-function saveLotes() { localStorage.setItem('ds_lotes', JSON.stringify(lotesDB)); }
-
+function saveLotes() { save(); }
 function agregarLote() {
   if (bloqueaPorSoloLectura()) return;
   const pid = document.getElementById('venc-producto').value;

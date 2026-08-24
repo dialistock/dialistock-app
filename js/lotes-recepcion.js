@@ -147,5 +147,29 @@ function renderRecepcionOC() {
       '</div></div></div>';
   }).join('');
 }
+// ==================== DESCUENTO FEFO ====================
+// Descuenta stock de los lotes registrados en lotesDB siguiendo
+// la lógica FEFO (First Expired, First Out): primero se descuenta
+// del lote con vencimiento más próximo. Si un lote se agota,
+// continúa con el siguiente lote más próximo a vencer.
+// Retorna la cantidad que NO alcanzó a cubrirse con lotes
+// registrados (0 si todo se descontó correctamente contra lotes).
+function descontarLotesFEFO(productId, qty) {
+  let restante = qty;
+  const lotesProducto = lotesDB
+    .filter(l => l.productId === productId && l.qty > 0)
+    .sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
+
+  for (const lote of lotesProducto) {
+    if (restante <= 0) break;
+    const descuento = Math.min(lote.qty, restante);
+    lote.qty -= descuento;
+    restante -= descuento;
+  }
+  saveLotes();
+  renderVencimientos(); // refresca la vista de vencimientos si está abierta
+  return restante;
+}
+
 
 

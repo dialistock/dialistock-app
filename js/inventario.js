@@ -255,7 +255,6 @@ function setType(type) {
   }
   updateModalStock();
 }
-
 function confirmMovement() {
   if (bloqueaPorSoloLectura()) return;
   const qty = parseInt(document.getElementById('modal-qty').value);
@@ -270,6 +269,13 @@ function confirmMovement() {
   const prev = p.stock;
   const adds = currentType === 'entrada' || currentType === 'devolucion';
   p.stock = adds ? p.stock + qty : p.stock - qty;
+
+  // Descontar de los lotes por FEFO cuando es una salida
+  let sinCubrir = 0;
+  if (currentType === 'salida') {
+    sinCubrir = descontarLotesFEFO(p.id, qty);
+  }
+
   db.movements.push({
     id: genId(),
     productId: p.id,
@@ -287,6 +293,9 @@ function confirmMovement() {
   closeModal();
   const icons = { entrada: '📥 +', salida: '📤 -', devolucion: '🔄 +' };
   showAlert((icons[currentType] || '+') + qty + ' ' + p.unit + ' · ' + p.name, 'success');
+  if (sinCubrir > 0) {
+    showAlert(`⚠️ ${sinCubrir} un. de ${p.name} sin lote registrado — revisa vencimientos`, 'warning');
+  }
   updateDashboard();
   renderInventory();
   renderMovements();

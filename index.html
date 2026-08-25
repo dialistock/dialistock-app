@@ -423,6 +423,32 @@
     </div>
   </div>
 
+  <!-- Tab: Conteo por Lote -->
+<div id="inv-tab-lote" style="display:none">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
+      <div class="card-title" style="margin-bottom:0">🗃️ Conteo por Lote</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="iniciarConteoLote()" class="btn btn-primary btn-sm" style="padding:8px 14px;font-size:12px">Iniciar conteo</button>
+        <button id="lote-save-btn" onclick="guardarProgresoLoteManual()" class="btn btn-sm" style="padding:8px 14px;font-size:12px;background:var(--accent2);color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;display:none">💾 Guardar</button>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Cuenta físicamente cada lote registrado (por número de lote y vencimiento) y compara con lo que dice el sistema.</p>
+    <div id="lote-progress" style="display:none;margin-bottom:12px">
+      <div style="background:rgba(0,153,204,0.08);border:1.5px solid rgba(0,153,204,0.2);border-radius:10px;padding:10px;text-align:center">
+        <span style="font-family:'Inter',sans-serif;font-size:13px;color:var(--accent)" id="lote-progtext">0 / 0 lotes</span>
+      </div>
+    </div>
+    <div id="lote-conteo-lista"><div class="empty-state"><p>Presiona "Iniciar conteo" para comenzar</p></div></div>
+  </div>
+  <div id="lote-resumen-card" class="card" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
+      <div class="card-title" style="margin-bottom:0">📋 Diferencias por lote</div>
+      <button onclick="aplicarConteoLoteAlSistema()" style="background:var(--danger);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif">✓ Aplicar al sistema</button>
+    </div>
+    <div id="lote-resumen"></div>
+  </div>
+</div>
   <!-- Tab: Carro de Paro -->
   <div id="inv-tab-caroparo" style="display:none">
     <div class="card">

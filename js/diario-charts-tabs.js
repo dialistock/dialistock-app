@@ -563,7 +563,7 @@ var _origOnQRCode = null;
 
 // ==================== INVENTORY TABS ====================
 function switchInvTab(tab) {
-  ['lista','fisico','caroparo'].forEach(function(t) {
+  ['lista','fisico','caroparo','lote'].forEach(function(t) {
     var el = document.getElementById('inv-tab-' + t);
     var btn = document.getElementById('inv-tab-btn-' + t);
     if (el) el.style.display = t === tab ? 'block' : 'none';

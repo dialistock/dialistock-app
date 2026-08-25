@@ -171,5 +171,152 @@ function descontarLotesFEFO(productId, qty) {
   return restante;
 }
 
+// ==================== CONTEO POR LOTE ====================
+let loteConteoData = [];
+let loteConteoActivo = false;
 
+function saveLoteConteoProgreso() {
+  localStorage.setItem(lsKeyFor('ds_lote_conteo_progreso'), JSON.stringify({ data: loteConteoData, activo: loteConteoActivo }));
+}
+
+function cargarLoteConteoProgreso() {
+  try {
+    const raw = localStorage.getItem(lsKeyFor('ds_lote_conteo_progreso'));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+function iniciarConteoLote() {
+  if (!lotesDB.length) { showAlert('No hay lotes registrados para contar', 'error'); return; }
+  const progresoGuardado = cargarLoteConteoProgreso();
+  if (progresoGuardado && progresoGuardado.activo && progresoGuardado.data.length) {
+    const continuar = confirm('Hay un conteo por lote en progreso. ¿Continuarlo? (Cancelar para empezar uno nuevo)');
+    if (continuar) {
+      loteConteoData = progresoGuardado.data;
+      loteConteoActivo = true;
+      renderConteoLoteLista();
+      document.getElementById('lote-progress').style.display = 'block';
+      document.getElementById('lote-save-btn').style.display = 'inline-block';
+      document.getElementById('lote-resumen-card').style.display = 'none';
+      return;
+    }
+  }
+  loteConteoData = lotesDB.filter(l => l.qty > 0).map(l => ({ ...l, qtyReal: null, contado: false }));
+  loteConteoActivo = true;
+  saveLoteConteoProgreso();
+  renderConteoLoteLista();
+  document.getElementById('lote-progress').style.display = 'block';
+  document.getElementById('lote-save-btn').style.display = 'inline-block';
+  document.getElementById('lote-resumen-card').style.display = 'none';
+  showAlert('Conteo por lote iniciado · ' + loteConteoData.length + ' lotes', 'success');
+}
+
+function guardarProgresoLoteManual() {
+  if (bloqueaPorSoloLectura()) return;
+  if (!loteConteoActivo || !loteConteoData.length) { showAlert('No hay conteo por lote activo', 'error'); return; }
+  saveLoteConteoProgreso();
+  const contados = loteConteoData.filter(l => l.contado).length;
+  showAlert('💾 Progreso guardado · ' + contados + '/' + loteConteoData.length + ' lotes contados', 'success');
+}
+
+function renderConteoLoteLista() {
+  const lista = document.getElementById('lote-conteo-lista');
+  const contados = loteConteoData.filter(l => l.contado).length;
+  const prog = document.getElementById('lote-progtext');
+  if (prog) prog.textContent = contados + ' / ' + loteConteoData.length + ' lotes contados';
+  if (!loteConteoActivo || !loteConteoData.length) { lista.innerHTML = '<div class="empty-state"><p>Presiona "Iniciar conteo" para comenzar</p></div>'; return; }
+
+  lista.innerHTML = loteConteoData.map((l, i) => {
+    const diff = l.contado ? l.qtyReal - l.qty : null;
+    const bg = !l.contado ? 'var(--surface)' : diff === 0 ? 'rgba(0,153,204,0.04)' : diff > 0 ? 'rgba(245,124,0,0.04)' : 'rgba(229,57,53,0.04)';
+    const border = !l.contado ? 'var(--border)' : diff === 0 ? 'rgba(0,153,204,0.2)' : diff > 0 ? 'rgba(245,124,0,0.2)' : 'rgba(229,57,53,0.2)';
+    return `<div style="padding:10px 11px;background:${bg};border:1.5px solid ${border};border-radius:12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:700;color:var(--text)">${l.productName}</div>
+          <div style="font-size:10px;color:var(--muted)">Lote: ${l.lote || 'S/N'} · Vence: ${l.vencimiento || '-'}</div>
+        </div>
+        <div style="width:60px;text-align:center;flex-shrink:0">
+          <div style="font-size:9px;color:var(--muted);font-weight:700">Sistema</div>
+          <div style="font-family:'Inter',sans-serif;font-size:14px;font-weight:800;color:var(--accent2)">${l.qty}</div>
+        </div>
+        <div style="width:70px;flex-shrink:0">
+          <input type="number" min="0" placeholder="—" value="${l.contado ? l.qtyReal : ''}"
+            style="width:100%;padding:6px 3px;border:1.5px solid ${l.contado ? 'var(--danger)' : 'var(--border)'};border-radius:8px;font-size:13px;font-weight:700;font-family:'Inter',sans-serif;text-align:center;background:var(--surface);color:var(--text)"
+            onchange="contarLote(${i}, this.value)">
+        </div>
+        <div style="width:36px;text-align:center;flex-shrink:0">
+          ${l.contado ? `<span style="font-family:'Inter',sans-serif;font-size:12px;font-weight:800;color:${diff===0?'var(--accent)':diff>0?'#f57c00':'var(--danger)'}">${diff>0?'+':''}${diff}</span>` : '<span style="color:var(--border);font-size:11px">·</span>'}
+        </div>
+      </div>
+    </div>`;
+  }).join('') + (loteConteoData.every(l => l.contado) ? `<button class="btn btn-primary" style="margin-top:8px" onclick="finalizarConteoLote()">📝 Generar informe</button>` : '');
+}
+
+function contarLote(idx, val) {
+  loteConteoData[idx].qtyReal = parseInt(val) || 0;
+  loteConteoData[idx].contado = true;
+  saveLoteConteoProgreso();
+  renderConteoLoteLista();
+}
+
+function finalizarConteoLote() {
+  if (bloqueaPorSoloLectura()) return;
+  const diferencias = loteConteoData.filter(l => l.qtyReal !== l.qty);
+  const res = document.getElementById('lote-resumen');
+  document.getElementById('lote-resumen-card').style.display = 'block';
+  if (!diferencias.length) {
+    res.innerHTML = '<div style="text-align:center;padding:20px;color:var(--accent);font-weight:700">✅ Sin diferencias. Lotes cuadrados.</div>';
+    return;
+  }
+  res.innerHTML = `<div style="margin-bottom:10px;font-size:12px;color:var(--muted);font-weight:600">${diferencias.length} lotes con diferencia</div>` +
+    diferencias.map(l => {
+      const diff = l.qtyReal - l.qty;
+      const color = diff > 0 ? 'var(--accent)' : 'var(--danger)';
+      return `<div style="padding:10px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:700">${l.productName}</div>
+        <div style="font-size:10px;color:var(--muted)">Lote: ${l.lote || 'S/N'} · Sistema: ${l.qty} → Real: ${l.qtyReal}</div>
+        <div style="font-family:'Inter',sans-serif;font-size:14px;font-weight:800;color:${color};margin-top:4px">${diff>0?'+':''}${diff}</div>
+      </div>`;
+    }).join('');
+  showAlert('Informe generado · ' + diferencias.length + ' diferencias', 'warning');
+}
+
+function aplicarConteoLoteAlSistema() {
+  if (bloqueaPorSoloLectura()) return;
+  const diferencias = loteConteoData.filter(l => l.contado && l.qtyReal !== l.qty);
+  if (!diferencias.length) { showAlert('No hay diferencias para aplicar', 'info'); return; }
+  if (!confirm(`¿Actualizar ${diferencias.length} lotes al valor contado? Esto también ajustará el stock total del producto.`)) return;
+  diferencias.forEach(l => {
+    const loteReal = lotesDB.find(x => x.id === l.id);
+    if (!loteReal) return;
+    const deltaLote = l.qtyReal - loteReal.qty;
+    loteReal.qty = l.qtyReal;
+    const p = db.products.find(x => x.id === l.productId || x.code === l.code);
+    if (p) {
+      const prevStock = p.stock;
+      p.stock = Math.max(0, p.stock + deltaLote);
+      db.movements.push({
+        id: genId(),
+        productId: p.id,
+        productName: p.name,
+        code: p.code,
+        type: deltaLote >= 0 ? 'entrada' : 'salida',
+        qty: Math.abs(deltaLote),
+        prevStock,
+        newStock: p.stock,
+        note: 'Ajuste por Conteo por Lote (' + (l.lote || 'S/N') + ')',
+        date: new Date().toISOString()
+      });
+    }
+  });
+  saveLotes();
+  save();
+  loteConteoActivo = false;
+  saveLoteConteoProgreso();
+  renderConteoLoteLista();
+  renderVencimientos();
+  updateDashboard();
+  showAlert('✅ Lotes actualizados · ' + diferencias.length + ' ajustados', 'success');
+}
 

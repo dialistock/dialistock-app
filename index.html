@@ -1882,7 +1882,7 @@
       <div class="card-title">➕ Agregar manualmente</div>
       <div class="form-group">
         <label>Producto</label>
-        <select id="diario-producto" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;color:var(--text);background:var(--surface)">
+        <select id="diario-producto"  onchange="actualizarLotesDiario()" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;color:var(--text);background:var(--surface)">
           <option value="">— Seleccionar —</option>
         </select>
       </div>
@@ -1893,7 +1893,7 @@
         </div>
         <div class="form-group">
           <label>Nº Lote</label>
-          <input type="text" id="diario-lote" placeholder="Opcional">
+          <select id="diario-lote" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:12px;font-family:'Inter',sans-serif;font-size:13px;color:var(--text);background:var(--surface)"><option value="">Automático (FEFO)</option></select>
         </div>
       </div>
       <button class="btn btn-primary" onclick="agregarDiario()">+ Agregar al diario</button>

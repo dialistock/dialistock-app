@@ -158,7 +158,14 @@ function descontarLotesFEFO(productId, qty) {
   let restante = qty;
   const lotesProducto = lotesDB
     .filter(l => l.productId === productId && l.qty > 0)
-    .sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
+    .sort((a, b) => {
+      // Prioridad 1: mes en que llegó el lote (factura más antigua primero)
+      const mesA = a.registrado ? a.registrado.slice(0, 7) : '9999-99';
+      const mesB = b.registrado ? b.registrado.slice(0, 7) : '9999-99';
+      if (mesA !== mesB) return mesA < mesB ? -1 : 1;
+      // Prioridad 2 (dentro del mismo mes): vencimiento más próximo primero
+      return new Date(a.vencimiento) - new Date(b.vencimiento);
+    });
 
   for (const lote of lotesProducto) {
     if (restante <= 0) break;
@@ -167,11 +174,9 @@ function descontarLotesFEFO(productId, qty) {
     restante -= descuento;
   }
   saveLotes();
-  renderVencimientos(); // refresca la vista de vencimientos si está abierta
+  renderVencimientos();
   return restante;
 }
-
-// ==================== CONTEO POR LOTE ====================
 let loteConteoData = [];
 let loteConteoActivo = false;
 

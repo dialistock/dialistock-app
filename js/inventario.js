@@ -13,24 +13,22 @@ function renderInventory(filter = '') {
 
   list.innerHTML = items.map(p => {
     const idx = db.products.indexOf(p);
-    const cls = p.stock === 0 ? 'stock-out' : p.stock <= p.minStock ? 'stock-low' : 'stock-ok';
+    const esNoInv = p.inventariable === false;
+    const cls = esNoInv ? '' : (p.stock === 0 ? 'stock-out' : p.stock <= p.minStock ? 'stock-low' : 'stock-ok');
     return `
       <div class="product-item" onclick="openDetailModal(${idx})">
         <div class="product-icon">${p.emoji}</div>
         <div class="product-info">
           <div class="product-name">${p.name}</div>
-          <div class="product-code">${p.code} · ${p.category}</div>
+          <div class="product-code">${p.code} · ${p.category}${esNoInv ? ' · <span style="color:var(--muted);font-weight:700">No inventariable</span>' : ''}</div>
         </div>
         <div class="product-stock">
-          <div class="stock-number ${cls}">${p.stock}</div>
-          <div class="stock-unit">${p.unit}</div>
+          ${esNoInv ? '<div style="font-size:11px;color:var(--muted)">—</div>' : `<div class="stock-number ${cls}">${p.stock}</div><div class="stock-unit">${p.unit}</div>`}
         </div>
       </div>
     `;
   }).join('');
-}
-
-function filterInventory(val) { renderInventory(val); }
+}function filterInventory(val) { renderInventory(val); }
 
 // ==================== MOVEMENTS LOG ====================
 function renderMovements() {

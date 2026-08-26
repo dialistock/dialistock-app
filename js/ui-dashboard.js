@@ -40,12 +40,11 @@ function animateCounter(el, target) {
 }
 
 function updateDashboard() {
-  const total = db.products.length;
+  const inventariables = db.products.filter(p => p.inventariable !== false); const total = inventariables.length;
   const today = new Date().toDateString();
-  const moves = db.movements.filter(m => new Date(m.date).toDateString() === today).length;
-  const low = db.products.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
-  const out = db.products.filter(p => p.stock === 0).length;
-
+  const moves = db.movements.filter(m => new Date(m.date).toDateString() === today).length
+  const low = inventariables.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
+  const out = inventariables.filter(p => p.stock === 0).length;
   animateCounter(document.getElementById('stat-total'), total);
   animateCounter(document.getElementById('stat-moves'), moves);
   animateCounter(document.getElementById('stat-low'), low);
@@ -73,7 +72,7 @@ function updateDashboard() {
 
   // Alerts
   const alertList = document.getElementById('alerts-list');
-  const lowItems = db.products.filter(p => p.stock <= p.minStock);
+  const lowItems = inventariables.filter(p => p.stock <= p.minStock);
   if (lowItems.length === 0) {
     alertList.innerHTML = '<div class="empty-state" data-icon="✅"><p>Todo en orden</p><small>Sin alertas de stock</small></div>';
   } else {

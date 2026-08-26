@@ -57,7 +57,7 @@ function iniciarInventario() {
   const precargar = currentCentro === 'independencia'
     ? confirm('¿Precargar el conteo físico realizado hoy (25-06)?\n\nSe completarán automáticamente los productos ya contados. Podrás revisar y ajustar cualquier valor antes de generar el informe.')
     : false;
-  invFisData = db.products.map(p => {
+  invFisData = db.products.filter(p => p.inventariable !== false).map(p => {
     if (precargar && CONTEO_PRECARGADO_25_06[p.code] !== undefined) {
       return { ...p, stockReal: CONTEO_PRECARGADO_25_06[p.code], contado: true };
     }

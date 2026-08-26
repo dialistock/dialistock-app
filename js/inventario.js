@@ -221,10 +221,27 @@ function openMovementModal(idx) {
   document.getElementById('modal-note').value = '';
   setType('entrada');
   updateModalStock();
+
+  // Último consumo y última factura registrada de este producto
+  const infoEl = document.getElementById('modal-info-historial');
+  if (infoEl) {
+    const ultimaSalida = db.movements
+      .filter(m => m.productId === p.id && m.type === 'salida')
+      .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+    const ultimaFactura = (typeof recepcionDB !== 'undefined' ? recepcionDB : [])
+      .filter(r => r.code === p.code)
+      .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+
+    const fmtFecha = (iso) => new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    infoEl.innerHTML =
+      '<div>📤 Último consumo: <strong>' + (ultimaSalida ? fmtFecha(ultimaSalida.date) + ' · ' + ultimaSalida.qty + ' ' + p.unit : 'sin registro') + '</strong></div>' +
+      '<div style="margin-top:3px">🧾 Última factura: <strong>' + (ultimaFactura ? fmtFecha(ultimaFactura.date) + (ultimaFactura.proveedor ? ' · ' + ultimaFactura.proveedor : '') + (ultimaFactura.orden ? ' · OC ' + ultimaFactura.orden : '') : 'sin registro') + '</strong></div>';
+  }
+
   document.getElementById('movement-modal').classList.add('open');
   setTimeout(() => document.getElementById('modal-qty').focus(), 300);
 }
-
 function closeModal() { document.getElementById('movement-modal').classList.remove('open'); }
 
 document.getElementById('modal-qty').addEventListener('input', updateModalStock);

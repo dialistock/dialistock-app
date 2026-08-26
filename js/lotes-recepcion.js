@@ -86,7 +86,7 @@ function confirmarRecepcion() {
   p.stock += recibido;
   const rec = { id: genId(), productId: pid, productName: p.name, code: p.code, orden, proveedor, pedido, recibido, diferencia: recibido - pedido, lote, vencimiento, prevStock: prev, newStock: p.stock, date: new Date().toISOString() };
   recepcionDB.push(rec);
-  db.movements.push({ id: genId(), productId: pid, productName: p.name, code: p.code, type: 'entrada', qty: recibido, prevStock: prev, newStock: p.stock, note: `Recepción OC ${orden} · ${proveedor}`, date: new Date().toISOString() });
+db.movements.push({ id: genId(), productId: pid, productName: p.name, code: p.code, usuario: currentUser ? currentUser.nombre : 'Sistema', type: 'entrada', qty: recibido, prevStock: prev, newStock: p.stock, note: `Recepción OC ${orden} · ${proveedor}`, date: new Date().toISOString() });
   if (lote && vencimiento) {
     lotesDB.push({ id: genId(), productId: pid, productName: p.name, code: p.code, lote, qty: recibido, vencimiento, registrado: new Date().toISOString() });
     saveLotes();
@@ -114,7 +114,7 @@ function confirmarRecepcionOC() {
   p.stock += recibido;
   const rec = { id: genId(), productId: pid, productName: p.name, code: p.code, orden, proveedor, pedido, recibido, diferencia: recibido - pedido, lote, vencimiento, prevStock: prev, newStock: p.stock, facturaLink, date: new Date().toISOString() };
   recepcionDB.push(rec);
-  db.movements.push({ id: genId(), productId: pid, productName: p.name, code: p.code, type: 'entrada', qty: recibido, prevStock: prev, newStock: p.stock, note: 'Recepción OC ' + orden + ' · ' + proveedor, date: new Date().toISOString() });
+ db.movements.push({ id: genId(), productId: pid, productName: p.name, code: p.code, usuario: currentUser ? currentUser.nombre : 'Sistema', type: 'entrada', qty: recibido, prevStock: prev, newStock: p.stock, note: 'Recepción OC ' + orden + ' · ' + proveedor, date: new Date().toISOString() });
   if (lote && vencimiento) { lotesDB.push({ id: genId(), productId: pid, productName: p.name, code: p.code, lote, qty: recibido, vencimiento, registrado: new Date().toISOString() }); saveLotes(); }
   save(); saveRecepcion();
   ['rec-orden','rec-proveedor-oc','rec-pedido','rec-recibido','rec-lote','rec-vencimiento','rec-factura-link'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
@@ -301,20 +301,19 @@ function aplicarConteoLoteAlSistema() {
     if (p) {
       const prevStock = p.stock;
       p.stock = Math.max(0, p.stock + deltaLote);
-      db.movements.push({
-        id: genId(),
-        productId: p.id,
-        productName: p.name,
-        code: p.code,
-        type: deltaLote >= 0 ? 'entrada' : 'salida',
-        qty: Math.abs(deltaLote),
-        prevStock,
-        newStock: p.stock,
-        note: 'Ajuste por Conteo por Lote (' + (l.lote || 'S/N') + ')',
-        date: new Date().toISOString()
-      });
-    }
-  });
+     db.movements.push({
+  id: genId(),
+  productId: p.id,
+  productName: p.name,
+  code: p.code,
+  usuario: currentUser ? currentUser.nombre : 'Sistema',
+  type: deltaLote >= 0 ? 'entrada' : 'salida',
+  qty: Math.abs(deltaLote),
+  prevStock,
+  newStock: p.stock,
+  note: 'Ajuste por Conteo por Lote (' + (l.lote || 'S/N') + ')',
+  date: new Date().toISOString()
+});
   saveLotes();
   save();
   loteConteoActivo = false;

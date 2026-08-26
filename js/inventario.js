@@ -43,7 +43,7 @@ function renderMovements() {
       <div class="movement-dot ${m.type}">${m.type === 'entrada' ? '📥' : m.type === 'devolucion' ? '🔄' : '📤'}</div>
       <div class="movement-info">
         <div class="movement-name">${m.productName}</div>
-        <div class="movement-time">${formatDate(m.date)}${m.note ? ' · ' + m.note : ''}${m.type === 'devolucion' ? ' <span style="color:#f57c00;font-size:10px;font-weight:700">DEVOLUCIÓN SALA</span>' : ''}</div>
+        <div class="movement-time">${formatDate(m.date)}${m.usuario ? ' · ' + m.usuario : ''}${m.note ? ' · ' + m.note : ''}${m.type === 'devolucion' ? ' <span style="color:#f57c00;font-size:10px;font-weight:700">DEVOLUCIÓN SALA</span>' : ''}</div>
       </div>
       <div class="movement-qty ${m.type}">${m.type === 'salida' ? '-' : '+'}${m.qty}</div>
     </div>
@@ -296,6 +296,7 @@ function confirmMovement() {
     productId: p.id,
     productName: p.name,
     code: p.code,
+    usuario: currentUser ? currentUser.nombre : 'Sistema',
     type: currentType,
     qty,
     prevStock: prev,

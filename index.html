@@ -425,6 +425,14 @@
 
   <!-- Tab: Conteo por Lote -->
 <div id="inv-tab-lote" style="display:none">
+  <div style="background:linear-gradient(135deg,#0057A8,#0099cc);border-radius:14px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+  <div style="flex:1;min-width:0">
+    <div style="font-size:13px;font-weight:700;color:white">📥 Actualizar lotes desde Dynamics</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.7);margin-top:2px" id="dynamics-import-status-lote">Sube el Excel de BC (con columnas de lote y vencimiento) antes de iniciar el conteo</div>
+  </div>
+  <button onclick="document.getElementById('dynamics-import-input-lote').click()" style="background:#F5C518;color:#1a1a1a;border:none;border-radius:10px;padding:8px 14px;font-size:12px;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;flex-shrink:0">📂 Subir Excel</button>
+  <input type="file" id="dynamics-import-input-lote" accept=".xlsx,.xls" style="display:none" onchange="importarDesdeDynamicsLote(this)">
+</div>
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
       <div class="card-title" style="margin-bottom:0">🗃️ Conteo por Lote</div>

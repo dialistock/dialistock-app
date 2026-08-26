@@ -65,11 +65,26 @@ function renderDiario() {
   }).join('');
 }
 
+function actualizarLotesDiario() {
+  var pid = document.getElementById('diario-producto').value;
+  var sel = document.getElementById('diario-lote');
+  if (!sel) return;
+  if (!pid) { sel.innerHTML = '<option value="">Automático (FEFO)</option>'; return; }
+  var lotesProducto = lotesDB
+    .filter(function(l) { return l.productId === pid && l.qty > 0; })
+    .sort(function(a, b) { return new Date(a.vencimiento) - new Date(b.vencimiento); });
+  var opciones = '<option value="">Automático (FEFO)</option>' +
+    lotesProducto.map(function(l) {
+      var vLabel = l.vencimiento ? ' · vence ' + l.vencimiento : '';
+      return '<option value="' + l.id + '">Lote ' + (l.lote || 'S/N') + ' · ' + l.qty + ' un.' + vLabel + '</option>';
+    }).join('');
+  sel.innerHTML = opciones;
+}
 function agregarDiario() {
   if (bloqueaPorSoloLectura()) return;
   var pid = document.getElementById('diario-producto').value;
   var qty = parseInt(document.getElementById('diario-qty').value) || 0;
-  var lote = document.getElementById('diario-lote').value.trim();
+  var loteId = document.getElementById('diario-lote').value;
 
   if (!pid) { showAlert('Selecciona un producto', 'error'); return; }
   if (!qty || qty <= 0) { showAlert('Ingresa una cantidad válida', 'error'); return; }
@@ -81,6 +96,65 @@ function agregarDiario() {
     showAlert('Stock insuficiente (' + p.stock + ' ' + p.unit + ')', 'error');
     return;
   }
+
+  var loteLabel = '';
+  var sinCubrir = 0;
+  if (loteId) {
+    var loteObj = lotesDB.find(function(l) { return l.id === loteId; });
+    if (loteObj) {
+      var descuento = Math.min(loteObj.qty, qty);
+      loteObj.qty -= descuento;
+      sinCubrir = qty - descuento;
+      loteLabel = loteObj.lote || 'S/N';
+      saveLotes();
+    }
+  } else if (typeof descontarLotesFEFO === 'function') {
+    sinCubrir = descontarLotesFEFO(p.id, qty);
+    loteLabel = 'Auto (FEFO)';
+  }
+
+  var existing = diarioDB.find(function(d) { return d.productId === pid; });
+  if (existing) {
+    existing.qty += qty;
+  } else {
+    diarioDB.push({
+      id: genId(),
+      productId: pid,
+      codigo: p.code,
+      nombre: p.name,
+      qty: qty,
+      lote: loteLabel,
+      unidad: 'UNIDAD',
+      fecha: new Date().toLocaleDateString('es-CL')
+    });
+  }
+
+  var prev = p.stock;
+  p.stock = Math.max(0, p.stock - qty);
+  db.movements.push({
+    id: genId(),
+    productId: p.id,
+    productName: p.name,
+    code: p.code,
+    type: 'salida',
+    qty: qty,
+    prevStock: prev,
+    newStock: p.stock,
+    note: 'Diario consumo' + (loteLabel ? ' · Lote: ' + loteLabel : ''),
+    date: new Date().toISOString()
+  });
+  save();
+
+  saveDiario();
+  document.getElementById('diario-qty').value = '';
+  document.getElementById('diario-lote').innerHTML = '<option value="">Automático (FEFO)</option>';
+  renderDiario();
+  updateDashboard();
+  if (sinCubrir > 0) {
+    showAlert('⚠️ ' + sinCubrir + ' un. sin lote registrado — revisa vencimientos', 'warning');
+  }
+  showAlert('+' + qty + ' ' + p.name + ' agregado al diario', 'success');
+}
 
   // Check if already in diario - accumulate
   var existing = diarioDB.find(function(d) { return d.productId === pid; });

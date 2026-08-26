@@ -551,6 +551,7 @@ function aplicarConteoAlSistema() {
       productId: real.id,
       productName: real.name,
       code: real.code,
+        usuario: currentUser ? currentUser.nombre : 'Sistema',
       type: p.stockReal >= prev ? 'entrada' : 'salida',
       qty: Math.abs(p.stockReal - prev),
       prevStock: prev,

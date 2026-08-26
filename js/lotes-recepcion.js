@@ -319,4 +319,89 @@ function aplicarConteoLoteAlSistema() {
   updateDashboard();
   showAlert('✅ Lotes actualizados · ' + diferencias.length + ' ajustados', 'success');
 }
+// ==================== IMPORTAR LOTES DESDE DYNAMICS ====================
+function importarDesdeDynamicsLote(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('dynamics-import-status-lote');
+  statusEl.textContent = 'Leyendo archivo...';
 
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array', cellDates: true });
+
+      let rows = [], codeIdx = -1, qtyIdx = -1;
+      for (const sheetName of wb.SheetNames) {
+        const candidateRows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: null });
+        const candidateHeaders = (candidateRows[0] || []).map(h => (h || '').toString().trim().toLowerCase());
+        const cIdx = candidateHeaders.findIndex(h => h.includes('producto'));
+        const qIdx = candidateHeaders.findIndex(h => h.includes('cantidad'));
+        if (cIdx !== -1 && qIdx !== -1) {
+          rows = candidateRows; codeIdx = cIdx; qtyIdx = qIdx;
+          break;
+        }
+      }
+
+      if (codeIdx === -1 || qtyIdx === -1) {
+        statusEl.textContent = '⚠️ No se encontraron columnas de producto/cantidad';
+        showAlert('No se encontraron datos válidos — verifica el formato del Excel', 'error');
+        return;
+      }
+
+      const headersFinal = (rows[0] || []).map(h => (h || '').toString().trim().toLowerCase());
+      const loteIdx = headersFinal.findIndex(h => h.includes('lote'));
+      const vencIdx = headersFinal.findIndex(h => h.includes('caduc') || h.includes('vencim'));
+
+      if (loteIdx === -1) {
+        statusEl.textContent = '⚠️ El Excel no tiene columna de lote';
+        showAlert('Este Excel no trae número de lote — usa "Actualizar stock" en Conteo Físico para solo actualizar cantidades', 'error');
+        return;
+      }
+
+      let actualizados = 0, creados = 0, sinCoincidencia = 0;
+      rows.forEach((row, i) => {
+        if (i === 0) return;
+        const code = row[codeIdx] ? String(row[codeIdx]).trim() : null;
+        const qty = parseFloat(row[qtyIdx]) || 0;
+        const lote = row[loteIdx] ? String(row[loteIdx]).trim() : '';
+        if (!code || !lote) return;
+
+        const p = db.products.find(x => x.code === code);
+        if (!p) { sinCoincidencia++; return; }
+
+        let vencimiento = '';
+        const vencRaw = vencIdx !== -1 ? row[vencIdx] : null;
+        if (vencRaw instanceof Date) vencimiento = vencRaw.toISOString().slice(0, 10);
+        else if (vencRaw != null && String(vencRaw).trim()) vencimiento = String(vencRaw).trim();
+
+        const existente = lotesDB.find(l => l.code === code && l.lote === lote);
+        if (existente) {
+          existente.qty = Math.round(qty);
+          existente.productId = p.id;
+          existente.productName = p.name;
+          if (vencimiento) existente.vencimiento = vencimiento;
+          actualizados++;
+        } else {
+          lotesDB.push({ id: genId(), productId: p.id, productName: p.name, code, lote, qty: Math.round(qty), vencimiento, registrado: new Date().toISOString() });
+          creados++;
+        }
+      });
+
+      saveLotes();
+      renderVencimientos();
+      if (typeof renderConteoLoteLista === 'function') renderConteoLoteLista();
+
+      const fecha = new Date().toLocaleString('es-CL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+      statusEl.textContent = `✅ ${creados} lotes nuevos · ${actualizados} actualizados · ${fecha}`;
+      showAlert(`✅ Lotes cargados desde Dynamics · ${creados} nuevos · ${actualizados} actualizados${sinCoincidencia ? ' · ' + sinCoincidencia + ' sin coincidencia' : ''}`, 'success');
+      input.value = '';
+    } catch (err) {
+      console.error('Error importando lotes desde Excel:', err);
+      statusEl.textContent = '❌ Error al leer el archivo';
+      showAlert('Error al leer el Excel — verifica el formato', 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}

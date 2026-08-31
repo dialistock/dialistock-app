@@ -157,50 +157,6 @@ type: 'salida',
   showAlert('+' + qty + ' ' + p.name + ' agregado al diario', 'success');
 }
 
-  // Check if already in diario - accumulate
-  var existing = diarioDB.find(function(d) { return d.productId === pid; });
-  if (existing) {
-    existing.qty += qty;
-  } else {
-    diarioDB.push({
-      id: genId(),
-      productId: pid,
-      codigo: p.code,
-      nombre: p.name,
-      qty: qty,
-      lote: lote,
-      unidad: 'UNIDAD',
-      fecha: new Date().toLocaleDateString('es-CL')
-    });
-  }
-
-  // Descontar stock real de DialiStock y dejar registro en Movimientos,
-  // igual que cualquier otra salida (antes esto solo quedaba en el diario
-  // interno, sin afectar el stock ni aparecer en el historial).
-  var prev = p.stock;
-  p.stock = Math.max(0, p.stock - qty);
-  db.movements.push({
-    id: genId(),
-    productId: p.id,
-    productName: p.name,
-    code: p.code,
-    type: 'salida',
-    qty: qty,
-    prevStock: prev,
-    newStock: p.stock,
-    note: 'Diario consumo' + (lote ? ' · Lote: ' + lote : ''),
-    date: new Date().toISOString()
-  });
-  save();
-
-  saveDiario();
-  document.getElementById('diario-qty').value = '';
-  document.getElementById('diario-lote').value = '';
-  renderDiario();
-  updateDashboard();
-  showAlert('+' + qty + ' ' + p.name + ' agregado al diario', 'success');
-}
-
 function eliminarDiario(idx) {
   if (bloqueaPorSoloLectura()) return;
   var entry = diarioDB[idx];

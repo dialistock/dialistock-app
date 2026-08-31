@@ -591,6 +591,41 @@ function switchDiarioTab(tab) {
   if (tab === 'diario') renderDiario();
 }
 
+// ==================== BÚSQUEDA MANUAL (ESCÁNER) ====================
+// Busca un insumo por código exacto o por nombre/código parcial desde el
+// cuadro "Ingreso Manual" de la pestaña Escáner. Si hay una única
+// coincidencia, lo deja listo en el Diario para registrar el consumo
+// (mismo resultado que si se hubiera escaneado su QR).
+function manualSearch() {
+  var input = document.getElementById('manual-code');
+  if (!input) return;
+  var texto = input.value.trim().toLowerCase();
+  if (!texto) { showAlert('Ingresa un código o nombre para buscar', 'error'); return; }
+
+  var encontrados = db.products.filter(function(p) {
+    return p.code.toLowerCase() === texto ||
+           p.name.toLowerCase().indexOf(texto) !== -1 ||
+           p.code.toLowerCase().indexOf(texto) !== -1;
+  });
+
+  if (!encontrados.length) {
+    showAlert('No se encontró ningún insumo con "' + input.value + '"', 'error');
+    return;
+  }
+  if (encontrados.length > 1) {
+    showAlert('Hay ' + encontrados.length + ' insumos que coinciden — sé más específico (usa el código exacto)', 'warning');
+    return;
+  }
+
+  var p = encontrados[0];
+  switchDiarioTab('diario');
+  var sel = document.getElementById('diario-producto');
+  if (sel) sel.value = p.id;
+  if (typeof actualizarLotesDiario === 'function') actualizarLotesDiario();
+  input.value = '';
+  showAlert('✅ ' + p.name + ' — ingresa la cantidad y confirma', 'success');
+}
+
 // After QR scan - add to diario automatically
 var _origOnQRCode = null;
 

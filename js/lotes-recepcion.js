@@ -301,19 +301,21 @@ function aplicarConteoLoteAlSistema() {
     if (p) {
       const prevStock = p.stock;
       p.stock = Math.max(0, p.stock + deltaLote);
-     db.movements.push({
-  id: genId(),
-  productId: p.id,
-  productName: p.name,
-  code: p.code,
-  usuario: currentUser ? currentUser.nombre : 'Sistema',
-  type: deltaLote >= 0 ? 'entrada' : 'salida',
-  qty: Math.abs(deltaLote),
-  prevStock,
-  newStock: p.stock,
-  note: 'Ajuste por Conteo por Lote (' + (l.lote || 'S/N') + ')',
-  date: new Date().toISOString()
-});
+      db.movements.push({
+        id: genId(),
+        productId: p.id,
+        productName: p.name,
+        code: p.code,
+        usuario: currentUser ? currentUser.nombre : 'Sistema',
+        type: deltaLote >= 0 ? 'entrada' : 'salida',
+        qty: Math.abs(deltaLote),
+        prevStock,
+        newStock: p.stock,
+        note: 'Ajuste por Conteo por Lote (' + (l.lote || 'S/N') + ')',
+        date: new Date().toISOString()
+      });
+    }
+  });
   saveLotes();
   save();
   loteConteoActivo = false;
